@@ -10,6 +10,8 @@ import UIKit
 import AudioKit
 import SoundpipeAudioKit
 
+let tau = Double.pi * 2
+
 extension FloatingPoint {
     @inlinable
     func signum( ) -> Self {
@@ -58,6 +60,20 @@ enum Tuning {
     }
 }
 
+enum Tone {
+    case discrete(Float)
+    case continuous(Float)
+    
+    var value: Float {
+        switch self {
+        case let .discrete(t):
+            return t
+        case let .continuous(t):
+            return t
+        }
+    }
+}
+
 func toneName(_ tone: Int) -> String {
     let toneClass = ((tone % 12) + 12) % 12
     let octave = Int(floor(Float(tone) / 12.0))
@@ -71,7 +87,7 @@ func toneName(_ tone: Int) -> String {
 struct Key: View {
     let root: Int
     let tone: Int
-    @Binding var tones: [Float]
+    @Binding var tones: [Tone]
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -79,18 +95,36 @@ struct Key: View {
         let isBlack: Bool = [1, 3, 6, 8, 10].map { x in (x + root) % 12 }.contains(toneClass)
         
         let colorFore: Color = isBlack ? .white : .mint
-        let colorBack: Color = tones
-            .filter { between($0, min: Float(tone) - 0.5, max: Float(tone) + 0.5) }
-            .max()
-            .map { _ in .pink } ?? (isBlack ? .mint : .white)
+        let colorBack: Color = isBlack ? .mint : .white
         
         GeometryReader { geometry in
             ZStack(alignment: .center) {
                 RoundedRectangle(cornerRadius: 5)
                     .fill(colorBack)
                     .frame(maxWidth: .infinity)
-                    .overlay(Text(toneName(tone)).foregroundColor(colorFore))
                 
+                // background for played key
+                if let toneMax = (tones
+                    .filter { t in return between(t.value, min: Float(tone) - 0.5, max: Float(tone) + 0.5) }
+                    .max(by: { (t, t1) in return t.value < t1.value })
+                ) {
+                    let color: Color = {
+                        switch toneMax {
+                        case .discrete(_): return .pink
+                        case .continuous(_):
+                            let diff = abs(Double(toneMax.value) - Double(tone)) // 0 ~ 0.5
+                            let theta = (diff * 2 - 0.5) * tau // -tau/2 ~ tau/2
+                            let opacity = (cos(theta) + 1) / 2 * 0.8 + 0.2 // 0.2 ~ 1
+                            return .pink.opacity(opacity)
+                        }
+                    }()
+                    
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(color)
+                        .frame(maxWidth: .infinity)
+                }
+                
+                // border for light theme
                 if(colorScheme == .light && !isBlack) {
                     RoundedRectangle(cornerRadius: 5)
                         .stroke(.mint, lineWidth: 0.5)
@@ -98,12 +132,12 @@ struct Key: View {
                 }
                 
                 HStack(spacing: 0) {
-                    Spacer()
                     Rectangle()
                         .fill(colorFore.opacity(0.4))
                         .frame(width: 3)
-                    Spacer()
                 }
+                
+                Text(toneName(tone)).foregroundColor(colorFore)
             }
         }
     }
@@ -115,7 +149,7 @@ struct ContentView: View {
     @State var root = 0
     @State var octave = 0
     @State var toneMinKey: Int = -3
-    @State var tones: [Float] = []
+    @State var tones: [Tone] = []
     @State var numKey: Int = 10
     
     var body: some View {
@@ -127,17 +161,6 @@ struct ContentView: View {
                 }
                 .pickerStyle(SegmentedPickerStyle())
                 
-                LabeledContent("discrete:") {
-                    Picker("discretise", selection: $discrete) {
-                        ForEach(Discrete.allCases, id: \.self) { value in
-                            Text(value.rawValue)
-                                .tag(value)
-                        }
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                }
-            }
-            HStack{
                 LabeledContent("octave:") {
                     Stepper(value: $octave) {
                         Text("\(octave)")
@@ -160,6 +183,15 @@ struct ContentView: View {
                 }
             }
             
+            Picker("discretise", selection: $discrete) {
+                Text("discrete")
+                    .tag(Discrete.always)
+                Text("initially discrete")
+                    .tag(Discrete.initially)
+                Text("continuous")
+                    .tag(Discrete.never)
+            }
+            .pickerStyle(SegmentedPickerStyle())
         }
         
         GeometryReader { geometry in
@@ -196,7 +228,7 @@ struct TouchRepresentable: UIViewRepresentable {
     @Binding var tuning: Tuning
     @Binding var octave: Int
     @Binding var toneMinKey: Int
-    @Binding var tones: [Float]
+    @Binding var tones: [Tone]
     @Binding var numKey: Int
     @State var oscillators: NSMutableDictionary = [:]
     
@@ -214,7 +246,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     @Binding var tuning: Tuning
     @Binding var octave: Int
     @Binding var toneMinKey: Int
-    @Binding var tones: [Float]
+    @Binding var tones: [Tone]
     @Binding var numKey: Int
     @State var oscillators: NSMutableDictionary = [:]
     
@@ -222,7 +254,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         fatalError("init(coder:) not implemented")
     }
     
-    init(discrete: Binding<Discrete>, tuning: Binding<Tuning>, octave: Binding<Int>, toneMinKey: Binding<Int>, tones: Binding<[Float]>, numKey: Binding<Int>) {
+    init(discrete: Binding<Discrete>, tuning: Binding<Tuning>, octave: Binding<Int>, toneMinKey: Binding<Int>, tones: Binding<[Tone]>, numKey: Binding<Int>) {
         self._discrete = discrete
         self._tuning = tuning
         self._octave = octave
@@ -281,7 +313,6 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
             oscillator.$amplitude.ramp(to: 1, duration: 0.01)
             oscillators[touch.hash] = (oscillator, tone, DragState.stay)
         }
-        print("\(oscillators)")
         update()
     }
     
@@ -294,19 +325,16 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
                 oscillators[touch.hash] = (oscillator, tone, DragState.move)
             }
         }
-        print("\(oscillators)")
         update()
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         stop(touches)
-        print("\(oscillators)")
         update()
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         stop(touches)
-        print("\(oscillators)")
         update()
     }
     
@@ -328,8 +356,13 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     
     func update() {
         tones = oscillators.compactMap { (key, value) in
-            if let (_, t, _) = value as? (DynamicOscillator, Float, DragState) {
-                return t
+            if let (_, tone, state) = value as? (DynamicOscillator, Float, DragState) {
+                switch state {
+                case .stay:
+                    return discrete == .never ? Tone.continuous(tone) : Tone.discrete(tone)
+                case .move:
+                    return discrete == .always ? Tone.discrete(tone) : Tone.continuous(tone)
+                }
             } else {
                 return nil
             }
