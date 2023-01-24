@@ -9,12 +9,12 @@ import SwiftUI
 import UIKit
 import AudioKit
 import SoundpipeAudioKit
+import AVFoundation
 
-let tau = Double.pi * 2
+let tau: Double = Double.pi * 2
 
 extension FloatingPoint {
-    @inlinable
-    func signum( ) -> Self {
+    func sign() -> Self {
         if self < 0 { return -1 }
         if self > 0 { return 1 }
         return 0
@@ -25,95 +25,129 @@ func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Boo
     return min <= x && x < max
 }
 
-enum DragState {
-    case stay
+enum PlayState {
+    case touch
     case move
-    
-    var toString: String {
-        switch self {
-        case .stay:
-            return "stay"
-        case .move:
-            return "move"
-        }
-    }
 }
 
-enum Discrete: String, CaseIterable, Identifiable {
-    var id: String{ self.rawValue }
+enum Discretise {
     case always
-    case initially
+    case onTouch
     case never
-}
-
-enum Tuning {
-    case scientific
-    case orchestral
     
-    var cPerSec: Float {
-        switch self {
-        case .scientific:
-            return 256
-        case .orchestral:
-            return 440.0 / pow(2.0, 9.0 / 12.0)
+    func on(_ state: PlayState) -> Bool {
+        switch state {
+        case .touch:
+            return self != .never
+        case .move:
+            return self == .always
         }
     }
 }
 
-enum Tone {
-    case discrete(Float)
-    case continuous(Float)
+enum PlayedNote {
+    case discrete(Int)
+    case continuous(Int, Float)
     
-    var value: Float {
+    var number: Int {
         switch self {
-        case let .discrete(t):
-            return t
-        case let .continuous(t):
-            return t
+        case let .discrete(number):
+            return number
+        case let .continuous(number, _):
+            return number
+        }
+    }
+    
+    var numberF: Float {
+        switch self {
+        case let .discrete(number):
+            return Float(number)
+        case let .continuous(_, numberF):
+            return numberF
+        }
+    }
+    
+    var diff: Float {
+        switch self {
+        case .discrete(_):
+            return 0
+        case let .continuous(number, numberF):
+            return numberF - Float(number)
         }
     }
 }
 
-func toneName(_ tone: Int) -> String {
-    let toneClass = ((tone % 12) + 12) % 12
-    let octave = Int(floor(Float(tone) / 12.0))
-    if(octave < 0) {
-        return String(repeating: "'", count: abs(octave)) + toneClass.description
-    } else {
-        return toneClass.description + String(repeating: "'", count: octave)
+struct Note {
+    var number: Int
+    
+    init(_ noteNumber: Int) {
+        self.number = noteNumber
+    }
+    
+    init(_ noteNumberF: Float) {
+        self.number = Int(round(noteNumberF))
+    }
+    
+    var klass: Int {
+        return (number % 12 + 12) % 12
+    }
+    
+    var octave: Int {
+        return number / 12
+    }
+    
+    let standardOctave = 5
+    var name: String {
+        if(standardOctave <= octave) {
+            return klass.description + String(repeating: "'", count: Int(octave - standardOctave))
+        } else {
+            return String(repeating: "'", count: Int(standardOctave - octave)) + klass.description
+        }
+    }
+    
+    func isBlack(_ root: Int) -> Bool {
+        return [1, 3, 6, 8, 10].map { ($0 + root) % 12 }.contains(klass)
+    }
+    
+    func contains(_ noteNumberF: Float) -> Bool {
+        return Int(round(noteNumberF)) == number
     }
 }
 
 struct Key: View {
-    let root: Int
-    let tone: Int
-    @Binding var tones: [Tone]
     @Environment(\.colorScheme) var colorScheme
+    @Binding var root: Int
+    @Binding var playedNotes: [Int:(PlayedNote, UInt8)]
+    let noteNumber: Int
     
     var body: some View {
-        let toneClass: Int = ((tone % 12) + 12) % 12
-        let isBlack: Bool = [1, 3, 6, 8, 10].map { x in (x + root) % 12 }.contains(toneClass)
-        
+        let note = Note(noteNumber)
+        let isBlack = note.isBlack(root)
         let colorFore: Color = isBlack ? .white : .mint
         let colorBack: Color = isBlack ? .mint : .white
         
         GeometryReader { geometry in
             ZStack(alignment: .center) {
-                RoundedRectangle(cornerRadius: 5)
+                RoundedRectangle(cornerRadius: 8)
                     .fill(colorBack)
                     .frame(maxWidth: .infinity)
                 
-                // background for played key
-                if let toneMax = (tones
-                    .filter { t in return between(t.value, min: Float(tone) - 0.5, max: Float(tone) + 0.5) }
-                    .max(by: { (t, t1) in return t.value < t1.value })
+                if let playedNoteMax = (
+                    playedNotes
+                        .map { (key, value) -> PlayedNote in
+                            let (playedNote, _) = value
+                            return playedNote
+                        }
+                        .filter { return note.contains($0.numberF) }
+                        .max(by: { (pn, pn1) in
+                            return pn.numberF < pn1.numberF
+                        })
                 ) {
                     let color: Color = {
-                        switch toneMax {
+                        switch playedNoteMax {
                         case .discrete(_): return .pink
-                        case .continuous(_):
-                            let diff = abs(Double(toneMax.value) - Double(tone)) // 0 ~ 0.5
-                            let theta = (diff * 2 - 0.5) * tau // -tau/2 ~ tau/2
+                        case .continuous(_, _):
+                            let theta = (Double(playedNoteMax.diff) * 2 - 0.5) * tau // -tau/2 ~ tau/2
                             let opacity = (cos(theta) + 1) / 2 * 0.8 + 0.2 // 0.2 ~ 1
                             return .pink.opacity(opacity)
                         }
@@ -137,30 +171,23 @@ struct Key: View {
                         .frame(width: 3)
                 }
                 
-                Text(toneName(tone)).foregroundColor(colorFore)
+                Text(note.name).foregroundColor(colorFore)
             }
         }
     }
 }
 
 struct ContentView: View {
-    @State var discrete = Discrete.always
-    @State var tuning = Tuning.scientific
-    @State var root = 0
-    @State var octave = 0
-    @State var toneMinKey: Int = -3
-    @State var tones: [Tone] = []
-    @State var numKey: Int = 10
+    @State var discretise = Discretise.always
+    @State var root: Int = 0
+    @State var octave: Int = 0
+    @State var noteMinKey: Int = 60 - 3
+    @State var playedNotes: [Int:(PlayedNote, UInt8)] = [:]
+    @State var nKeys: Int = 10
     
     var body: some View {
         VStack{
             HStack{
-                Picker("tuning", selection: $tuning) {
-                    Text("C4=256/s").tag(Tuning.scientific)
-                    Text("A4=440/s").tag(Tuning.orchestral)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                
                 LabeledContent("octave:") {
                     Stepper(value: $octave) {
                         Text("\(octave)")
@@ -172,24 +199,24 @@ struct ContentView: View {
                     }
                 }
                 LabeledContent("lowest key:") {
-                    Stepper(value: $toneMinKey) {
-                        Text("\(toneName(toneMinKey))")
+                    Stepper(value: $noteMinKey) {
+                        Text("\(Note(noteMinKey).name)")
                     }
                 }
                 LabeledContent("keys per row:") {
-                    Stepper(value: $numKey, in: 1...24) {
-                        Text("\(numKey)")
+                    Stepper(value: $nKeys, in: 1...24) {
+                        Text("\(nKeys)")
                     }
                 }
             }
             
-            Picker("discretise", selection: $discrete) {
+            Picker("discretise", selection: $discretise) {
                 Text("discrete")
-                    .tag(Discrete.always)
-                Text("initially discrete")
-                    .tag(Discrete.initially)
+                    .tag(Discretise.always)
+                Text("discrete until move")
+                    .tag(Discretise.onTouch)
                 Text("continuous")
-                    .tag(Discrete.never)
+                    .tag(Discretise.never)
             }
             .pickerStyle(SegmentedPickerStyle())
         }
@@ -197,175 +224,177 @@ struct ContentView: View {
         GeometryReader { geometry in
             ZStack {
                 VStack(spacing: 1) {
+                    let nNotes = Float(nKeys * 2 + 1)
+                    
                     ForEach(0..<2, id: \.self) { _ in
-                        let nTone = Float(numKey * 2 + 1)
-                        
                         HStack(spacing: 1) {
-                            Rectangle().fill(.clear).frame(width: geometry.size.width / CGFloat(nTone))
+                            Rectangle().fill(.clear).frame(width: geometry.size.width / CGFloat(nNotes))
                             
-                            ForEach(0..<numKey, id: \.self) { i in
-                                Key(root: root, tone: i * 2 + 1 + toneMinKey + octave * 12, tones: $tones)
+                            ForEach(0..<nKeys, id: \.self) { i in
+                                Key(root: $root, playedNotes: $playedNotes, noteNumber: i * 2 + 1 + noteMinKey + octave * 12)
                             }
                         }
                         HStack(spacing: 1) {
-                            ForEach(0..<numKey, id: \.self) { i in
-                                Key(root: root, tone: i * 2 + toneMinKey + octave * 12, tones: $tones)
+                            ForEach(0..<nKeys, id: \.self) { i in
+                                Key(root: $root, playedNotes: $playedNotes, noteNumber: i * 2 + noteMinKey + octave * 12)
                             }
                             
-                            Rectangle().fill(.clear).frame(width: geometry.size.width / CGFloat(nTone))
+                            Rectangle().fill(.clear).frame(width: geometry.size.width / CGFloat(nNotes))
                         }
                     }
                 }
                 
-                TouchRepresentable(discrete: $discrete, tuning: $tuning, octave: $octave, toneMinKey: $toneMinKey, tones: $tones, numKey: $numKey)
+                TouchRepresentable(discretise: $discretise, octave: $octave, noteMinKey: $noteMinKey, playedNotes: $playedNotes, nKeys: $nKeys)
             }
         }
     }
 }
 
 struct TouchRepresentable: UIViewRepresentable {
-    @Binding var discrete: Discrete
-    @Binding var tuning: Tuning
+    @Binding var discretise: Discretise
     @Binding var octave: Int
-    @Binding var toneMinKey: Int
-    @Binding var tones: [Tone]
-    @Binding var numKey: Int
-    @State var oscillators: NSMutableDictionary = [:]
+    @Binding var noteMinKey: Int
+    @Binding var playedNotes: [Int:(PlayedNote, UInt8)]
+    @Binding var nKeys: Int
     
-    
-    typealias Context = UIViewRepresentableContext<TouchRepresentable>
-    public func makeUIView(context: Context) -> TouchView { return TouchView(discrete: $discrete, tuning: $tuning, octave: $octave, toneMinKey: $toneMinKey, tones: $tones, numKey: $numKey) }
+    public func makeUIView(context: UIViewRepresentableContext<TouchRepresentable>) -> TouchView {
+        return TouchView(discretise: $discretise, octave: $octave, noteMinKey: $noteMinKey, playedNotes: $playedNotes, nKeys: $nKeys)
+    }
     public func updateUIView(_ uiView: TouchView, context: Context) {}
 }
 
 class TouchView: UIView, UIGestureRecognizerDelegate {
-    let engine = AudioEngine()
-    let mixer = Mixer()
+    let engine = AVAudioEngine()
+    let sampler = AVAudioUnitSampler()
+    let maxPitchBend: UInt16 = 16384
     
-    @Binding var discrete: Discrete
-    @Binding var tuning: Tuning
+    @Binding var discretise: Discretise
     @Binding var octave: Int
-    @Binding var toneMinKey: Int
-    @Binding var tones: [Tone]
-    @Binding var numKey: Int
-    @State var oscillators: NSMutableDictionary = [:]
+    @Binding var noteMinKey: Int
+    @Binding var playedNotes: [Int:(PlayedNote, UInt8)]
+    @Binding var nKeys: Int
+    
+    func isDiscrete(_ state: PlayState) -> Bool {
+        return discretise.on(state)
+    }
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) not implemented")
     }
     
-    init(discrete: Binding<Discrete>, tuning: Binding<Tuning>, octave: Binding<Int>, toneMinKey: Binding<Int>, tones: Binding<[Tone]>, numKey: Binding<Int>) {
-        self._discrete = discrete
-        self._tuning = tuning
+    init(discretise: Binding<Discretise>, octave: Binding<Int>, noteMinKey: Binding<Int>, playedNotes: Binding<[Int:(PlayedNote, UInt8)]>, nKeys: Binding<Int>) {
+        self._discretise = discretise
         self._octave = octave
-        self._toneMinKey = toneMinKey
-        self._tones = tones
-        self._numKey = numKey
+        self._noteMinKey = noteMinKey
+        self._playedNotes = playedNotes
+        self._nKeys = nKeys
         
         super.init(frame: .zero)
         self.isMultipleTouchEnabled = true
         
-        engine.output = mixer
+        engine.attach(sampler)
+        engine.connect(sampler, to: engine.mainMixerNode, format: nil)
+        
         do {
-            print("start engine")
             try engine.start()
-        } catch let error {
-            print(error)
+        } catch {
+            print("engin.start failed")
         }
         
         print("initialised")
     }
     
-    func tone(location: CGPoint, state: DragState) -> Float {
-        let nTone = Float(numKey * 2 + 1)
-        let tone = Float(location.x) / Float(self.bounds.width) * nTone + Float(toneMinKey - 1)
-        
-        let toneFloor = floor(tone)
-        let isUpper = between(Float(location.y), max: Float(self.bounds.height) / 4.0)
-        || between(Float(location.y), min: Float(self.bounds.height * 2.0) / 4.0, max: Float(self.bounds.height * 3.0) / 4.0)
-        
-        let diff = (toneMinKey % 12 + 12 + (isUpper ? 1 : 0)) % 2
-        let toneJust = toneFloor + Float(abs(Int(round(toneFloor + Float(diff))) % 2))
-        
-        switch state {
-        case .stay:
-            return (discrete == .never ? tone : toneJust) + Float(octave * 12)
-        case .move:
-            return (discrete == .always ? toneJust : tone) + Float(octave * 12)
+    deinit {
+        if engine.isRunning {
+            engine.disconnectNodeOutput(sampler)
+            engine.detach(sampler)
+            engine.stop()
         }
     }
     
-    func frequency(_ tone: Float) -> Float {
-        return tuning.cPerSec * pow(2.0, tone / 12.0)
+    func numberF(_ location: CGPoint) -> Float {
+        let nNoteNumbers = nKeys * 2 + 1
+        return Float(location.x) / Float(self.bounds.width) * Float(nNoteNumbers) + Float(noteMinKey - 1 + octave * 12)
+    }
+    
+    func number(_ location: CGPoint) -> Int {
+        let isUpper: Bool = between(Float(location.y), max: Float(self.bounds.height) / 4.0) ||
+            between(Float(location.y), min: Float(self.bounds.height * 2.0) / 4.0, max: Float(self.bounds.height * 3.0) / 4.0)
+        let numberF = numberF(location)
+        if(isUpper == (noteMinKey % 2 == 1)) {
+            return Int(round(numberF / 2) * 2)
+        } else {
+            return Int(round((numberF + 1) / 2) * 2 - 1)
+        }
+    }
+    
+    func play(_ touch: UITouch, _ playedNote: PlayedNote) {
+        if let channelNu = (0...UInt8.max)
+            .first(where: {channelNu in
+                !playedNotes.values
+                    .map{
+                        let (_, channel) = $0
+                        return channel
+                    }
+                    .contains(channelNu)
+        }) {
+            switch playedNote {
+            case let .discrete(number):
+                sampler.sendPitchBend(0, onChannel: channelNu)
+                sampler.startNote(UInt8.init(number), withVelocity: 127, onChannel: channelNu)
+                playedNotes.updateValue((PlayedNote.discrete(number), channelNu), forKey: touch.hash)
+            case let .continuous(number, numberF):
+                break
+            }
+        } else {
+            print("all channels busy")
+        }
+    }
+    
+    func bend(_ touch: UITouch, _ noteNumber: Int, noteNumberF: Float) {}
+    
+    func unplay(_ touch: UITouch) {
+        if let (playedNote, channel) = playedNotes[touch.hash] {
+            sampler.stopNote(UInt8(playedNote.number), onChannel: channel)
+            playedNotes.removeValue(forKey: touch.hash)
+        } else {
+            print("unplay failed")
+        }
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         touches.forEach { touch in
-            let location = touch.location(in: self)
-            let tone = tone(location: location, state: .stay)
-            
-            let oscillator = DynamicOscillator(
-                waveform: Table(.sine),
-                frequency: frequency(tone),
-                amplitude: 0)
-            mixer.addInput(oscillator)
-            oscillator.start()
-            oscillator.$amplitude.ramp(to: 1, duration: 0.01)
-            oscillators[touch.hash] = (oscillator, tone, DragState.stay)
+            play(touch, .discrete(number(touch.location(in: self))))
         }
-        update()
     }
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         touches.forEach { touch in
             let location = touch.location(in: self)
-            let tone = tone(location: location, state: .move)
-            if let (oscillator, _, _) = oscillators[touch.hash] as? (DynamicOscillator, Float, DragState) {
-                oscillator.frequency = frequency(tone)
-                oscillators[touch.hash] = (oscillator, tone, DragState.move)
+            
+            if let (playedNoteOld, channel) = playedNotes[touch.hash] {
+                let location = touch.location(in: self)
+                if(isDiscrete(.move)) {
+                    let number = number(location)
+
+                    if(playedNoteOld.number != number) {
+                        unplay(touch)
+                        play(touch, .discrete(number))
+                    }
+                } else {
+                    let numberF = numberF(location)
+                }
+            } else {
+                print("move failed")
             }
         }
-        update()
     }
     
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        stop(touches)
-        update()
+        touches.forEach(unplay)
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        stop(touches)
-        update()
-    }
-    
-    func stop(_ touches: Set<UITouch>) {
-        touches.forEach { touch in
-            if let (oscillator, _, _) = oscillators[touch.hash] as? (DynamicOscillator, Float, DragState) {
-                oscillator.$amplitude.ramp(to: 0, duration: 0.01)
-                self.oscillators.removeObject(forKey: touch.hash)
-                
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { [self] in
-                    oscillator.stop()
-                    self.mixer.removeInput(oscillator)
-                }
-            } else {
-                print("stop failed")
-            }
-        }
-    }
-    
-    func update() {
-        tones = oscillators.compactMap { (key, value) in
-            if let (_, tone, state) = value as? (DynamicOscillator, Float, DragState) {
-                switch state {
-                case .stay:
-                    return discrete == .never ? Tone.continuous(tone) : Tone.discrete(tone)
-                case .move:
-                    return discrete == .always ? Tone.discrete(tone) : Tone.continuous(tone)
-                }
-            } else {
-                return nil
-            }
-        }
+        touches.forEach(unplay)
     }
 }
