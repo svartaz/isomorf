@@ -12,6 +12,7 @@ struct isomorfApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(Observable())
         }
     }
 }

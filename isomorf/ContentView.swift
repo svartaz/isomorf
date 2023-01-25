@@ -25,6 +25,30 @@ func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Boo
     return min <= x && x < max
 }
 
+class Observable: ObservableObject {
+    @State var sampler: Sampler = Sampler()
+    
+    @Published var sustains: Bool = false {
+        didSet {
+            print("sustains=\(sustains)")
+            if(!sustains) {
+                sampler.unsustain()
+            }
+        }
+    }
+    @Published var bends: Bool = false {
+        didSet {
+            print("bends=\(bends)")
+            if(!bends) {
+                sampler.unbend()
+            }
+        }
+    }
+    @Published var played: [UUID: (PlayedNote, UInt8, UInt8)] = [:]
+    @Published var sustained: Set<UUID> = []
+    @Published var root: Int = 0
+}
+
 enum PlayedNote {
     case discrete(Int)
     case continuous(Float)
@@ -106,6 +130,7 @@ class Sampler {
     var sampler = AVAudioUnitSampler()
     var notesPlayed: [UUID: (PlayedNote, UInt8, UInt8)] = [:]
     var notesSustained: Set<UUID> = []
+
     let maxPitchBend: Int = 16384
     let maxNoteBend: Int = 4
     
@@ -216,13 +241,9 @@ let colorActive = Color.pink
 
 struct Key: View {
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var observable: Observable
+
     @State var id = UUID()
-    @Binding var sampler: Sampler
-    @Binding var sustainsAlways: Bool
-    @Binding var sustainsCurrently: Bool
-    @Binding var bendsAlways: Bool
-    @Binding var bendsCurrently: Bool
-    @Binding var root: Int
     @State var isPlayed = false
     @State var isSustained = false
     @State var x: Float = 0.5
@@ -230,7 +251,7 @@ struct Key: View {
 
     var body: some View {
         let note = Note(number)
-        let isBlack = note.isBlack(root)
+        let isBlack = note.isBlack(observable.root)
         let colorFore: Color = isBlack ? color0 : color1
         let colorBack: Color = isBlack ? color1 : color0
         GeometryReader { geometry in
@@ -245,7 +266,7 @@ struct Key: View {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(colorActive)
                         .frame(maxWidth: .infinity)
-                        .opacity(bendsAlways || bendsCurrently ? opacity : 1)
+                        .opacity(observable.bends ? opacity : 1)
                 } else if(colorScheme == .light && !isBlack) {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(color1, lineWidth: 0.5)
@@ -266,10 +287,10 @@ struct Key: View {
                         if(action.startLocation == action.location) {
                             // begin
                             
-                            if(bendsAlways || bendsCurrently) {
-                                sampler.play(id, number, x)
+                            if(observable.bends) {
+                                observable.sampler.play(id, number, x)
                             } else {
-                                sampler.play(id, number)
+                                observable.sampler.play(id, number)
                             }
                             isPlayed = true
                         } else {
@@ -279,20 +300,20 @@ struct Key: View {
                             let y = Float(action.location.y / geometry.size.height)
                             
                             if(between(x, min: 0, max: 1) && between(y, min: 0, max: 1)) {
-                                if(bendsAlways || bendsCurrently) {
-                                    sampler.bend(id, x)
+                                if(observable.bends) {
+                                    observable.sampler.bend(id, x)
                                 }
                             } else {
-                                sampler.unplay(id)
+                                observable.sampler.unplay(id)
                                 isPlayed = false
                             }
                         }
                     }.onEnded() { value in
-                        if(sustainsAlways || sustainsCurrently) {
-                            sampler.sustain(id)
+                        if(observable.sustains) {
+                            observable.sampler.sustain(id)
                             isSustained = true
                         } else {
-                            sampler.unplay(id)
+                            observable.sampler.unplay(id)
                             isPlayed = false
                         }
                     }
@@ -303,24 +324,16 @@ struct Key: View {
 
 struct ContentView: View {
     @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var observable: Observable
+
     @State var bendsAlways = false
     @State var bendsCurrently = false
     @State var sustainsAlways = false
     @State var sustainsCurrently = false
-    @State var sampler: Sampler = Sampler()
-    @State var root: Int = 0
     @State var octave: Int = 0
     @State var noteMinKey: Int = 60 - 3
     @State var nKeys: Int = 10
     @State var instrument: UInt8 = 0
-    
-    var bends: Bool {
-        return bendsAlways || bendsCurrently
-    }
-    
-    var sustains: Bool {
-        return sustainsAlways || sustainsCurrently
-    }
     
     var body: some View {
         VStack{
@@ -340,8 +353,8 @@ struct ContentView: View {
                     }
                 }
                 LabeledContent("root") {
-                    Stepper(value: $root, in: 0...11) {
-                        Text("\(root)")
+                    Stepper(value: $observable.root, in: 0...11) {
+                        Text("\(observable.root)")
                     }
                 }
                 LabeledContent("col.") {
@@ -356,7 +369,7 @@ struct ContentView: View {
                         }
                     }
                     .onChange(of: instrument) { _ in
-                        sampler.loadInstrument(instrument)
+                        observable.sampler.loadInstrument(instrument)
                     }
                     .pickerStyle(MenuPickerStyle())
                     .frame(minHeight: 0)
@@ -374,25 +387,26 @@ struct ContentView: View {
                 VStack(spacing: 1) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(bends ? colorActive : color1)
+                            .fill(observable.bends ? colorActive : color1)
                         Text("bend").foregroundColor(color0)
                     }
                     .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
                     .simultaneousGesture(DragGesture(minimumDistance: 0)
                         .onChanged() { _ in
                             bendsCurrently = true
+                            observable.bends = bendsAlways || bendsCurrently
                         }
                         .onEnded() { _ in
                             bendsCurrently = false
-                            sampler.unbend()
+                            observable.bends = bendsAlways || bendsCurrently
                         }
                     )
                     
                     ZStack {
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(sustains ? colorActive : color0)
+                            .fill(observable.sustains ? colorActive : color0)
                         
-                        if(colorScheme == .light && !sustains) {
+                        if(colorScheme == .light && !observable.sustains) {
                             RoundedRectangle(cornerRadius: 8)
                                 .stroke(color1, lineWidth: 0.5)
                         }
@@ -404,12 +418,11 @@ struct ContentView: View {
                         DragGesture(minimumDistance: 0)
                             .onChanged() { _ in
                                 sustainsCurrently = true
+                                observable.sustains = sustainsAlways || sustainsCurrently
                             }
                             .onEnded() { _ in
                                 sustainsCurrently = false
-                                if(!sustains) {
-                                    sampler.unsustain()
-                                }
+                                observable.sustains = sustainsAlways || sustainsCurrently
                             }
                     )
                 }
@@ -423,18 +436,12 @@ struct ContentView: View {
                                     Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
                                     
                                     ForEach(0..<nKeys, id: \.self) { i in
-                                        Key(sampler: $sampler,
-                                            sustainsAlways: $sustainsAlways, sustainsCurrently: $sustainsCurrently,
-                                            bendsAlways: $bendsAlways, bendsCurrently: $bendsCurrently,
-                                            root: $root, number: i * 2 + 1 + noteMinKey + octave * 12)
+                                        Key(number: i * 2 + 1 + noteMinKey + octave * 12)
                                     }
                                 }
                                 HStack(spacing: 1) {
                                     ForEach(0..<nKeys, id: \.self) { i in
-                                        Key(sampler: $sampler,
-                                            sustainsAlways: $sustainsAlways, sustainsCurrently: $sustainsCurrently,
-                                            bendsAlways: $bendsAlways, bendsCurrently: $bendsCurrently,
-                                            root: $root, number: i * 2 + noteMinKey + octave * 12)
+                                        Key(number: i * 2 + noteMinKey + octave * 12)
                                     }
                                     
                                     Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
