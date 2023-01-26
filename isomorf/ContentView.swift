@@ -6,19 +6,15 @@
 //
 
 import SwiftUI
-import UIKit
-import AudioKit
-import SoundpipeAudioKit
-import AVFoundation
 
 let tau: Double = Double.pi * 2
 
-extension FloatingPoint {
-    func sign() -> Self {
-        if self < 0 { return -1 }
-        if self > 0 { return 1 }
-        return 0
-    }
+func roundEven(_ x: Float) -> Float {
+    return round(x / 2) * 2
+}
+
+func roundOdd(_ x: Float) -> Float {
+    return round((x + 1) / 2) * 2 - 1
 }
 
 func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Bool {
@@ -26,71 +22,64 @@ func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Boo
 }
 
 class Observable: ObservableObject {
-    @State var sampler: Sampler = Sampler()
+    @Published var sampler = Sampler()
     
     @Published var sustains: Bool = false {
         didSet {
-            print("sustains=\(sustains)")
             if(!sustains) {
                 sampler.unsustain()
             }
         }
     }
+    @Published var sustainsAlways: Bool = false {
+        didSet { changeSustains() }
+    }
+    @Published var sustainsCurrently: Bool = false {
+        didSet { changeSustains() }
+    }
+    func changeSustains() {
+        sustains = sustainsAlways || sustainsCurrently
+    }
+    
     @Published var bends: Bool = false {
         didSet {
-            print("bends=\(bends)")
             if(!bends) {
                 sampler.unbend()
             }
         }
     }
-    @Published var played: [UUID: (PlayedNote, UInt8, UInt8)] = [:]
-    @Published var sustained: Set<UUID> = []
+    @Published var bendsAlways: Bool = false {
+        didSet { changeBends() }
+    }
+    @Published var bendsCurrently: Bool = false {
+        didSet { changeBends() }
+    }
+    func changeBends() {
+        bends = bendsAlways || bendsCurrently
+    }
+    
     @Published var root: Int = 0
+    @Published var nKeys: Int = 11
+    @Published var numberLowest: Int = 57
+    @Published var instrument: UInt8 = 0 {
+        didSet {
+            sampler.loadInstrument(instrument)
+        }
+    }
+    
+    @Published var played: [Int] = []
 }
 
-enum PlayedNote {
-    case discrete(Int)
-    case continuous(Float)
-    
-    var number: Int {
-        switch self {
-        case let .discrete(number):
-            return number
-        case let .continuous(numberF):
-            return Int(round(numberF))
-        }
-    }
-    
-    var numberF: Float {
-        switch self {
-        case let .discrete(number):
-            return Float(number)
-        case let .continuous(numberF):
-            return numberF
-        }
-    }
-    
-    var frac: Float {
-        switch self {
-        case .discrete(_):
-            return 0
-        case let .continuous(numberF):
-            return numberF - round(numberF)
-        }
-    }
-}
+let color0 = Color.white
+let color1 = Color.mint
+let colorActive = Color.pink
 
-struct Note {
-    var number: Int
+struct Key: View {
+    @Environment(\.colorScheme) var colorScheme
+    @EnvironmentObject var observable: Observable
     
-    init(_ noteNumber: Int) {
-        self.number = noteNumber
-    }
-    
-    init(_ noteNumberF: Float) {
-        self.number = Int(round(noteNumberF))
-    }
+    @State var diff: Float = 0
+    let number: Number
     
     var klass: Int {
         return (number % 12 + 12) % 12
@@ -109,149 +98,12 @@ struct Note {
         }
     }
     
-    func isBlack(_ root: Int) -> Bool {
-        return [1, 3, 6, 8, 10].map { ($0 + root) % 12 }.contains(klass)
+    var isBlack: Bool {
+        return [1, 3, 6, 8, 10].map { ($0 + observable.root) % 12 }.contains(klass)
     }
     
-    func contains(_ noteNumberF: Float) -> Bool {
-        return Int(round(noteNumberF)) == number
-    }
-}
-
-extension CGPoint: Hashable {
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(x)
-        hasher.combine(y)
-    }
-}
-
-class Sampler {
-    var engine = AVAudioEngine()
-    var sampler = AVAudioUnitSampler()
-    var notesPlayed: [UUID: (PlayedNote, UInt8, UInt8)] = [:]
-    var notesSustained: Set<UUID> = []
-
-    let maxPitchBend: Int = 16384
-    let maxNoteBend: Int = 4
-    
-    var channelsUsed: [UInt8] {
-        return notesPlayed.map { (_, value) in
-            let (_, _, channel) = value
-            return channel
-        }
-    }
-    
-    init() {
-        engine.attach(sampler)
-        engine.connect(sampler, to: engine.mainMixerNode, format: nil)
-        
-        loadInstrument(0)
-        
-        do {
-            try engine.start()
-        } catch {
-            print("falied to start engin")
-        }
-    }
-    
-    func pitchBend(_ x: Float) -> UInt16 {
-        let pitchBendF: Float = Float(maxPitchBend) / Float(maxNoteBend) * (2 * x + 1)
-        return UInt16.init(Int(pitchBendF))
-    }
-    
-    func play(_ id: UUID, _ number: Int) {
-        for channel: UInt8 in 0..<128 {
-            if(!channelsUsed.contains(channel)) {
-                let pitchBend: UInt16 = .init(maxPitchBend / 2)
-                sampler.sendPitchBend(pitchBend, onChannel: channel)
-
-                let note: UInt8 = .init(number - 2)
-                sampler.startNote(note, withVelocity: 127, onChannel: channel)
-                notesPlayed[id] = (PlayedNote.discrete(number), note, channel)
-                return
-            }
-        }
-        print("failed to play")
-    }
-    
-    func play(_ id: UUID, _ number: Int, _ x: Float) {
-        for channel: UInt8 in 0..<128 {
-            if(!channelsUsed.contains(channel)) {
-                let note: UInt8 = .init(number - 2)
-                sampler.sendPitchBend(pitchBend(x), onChannel: channel)
-                sampler.startNote(note, withVelocity: 127, onChannel: channel)
-                notesPlayed[id] = (PlayedNote.discrete(number), note, channel)
-                return
-            }
-        }
-        print("failed to play")
-    }
-    
-    func unplay(_ id: UUID) {
-        if let (_, note, channel) = notesPlayed[id] {
-            sampler.stopNote(note, onChannel: channel)
-            notesPlayed.removeValue(forKey: id)
-        } else {
-            print("failed to unplay")
-        }
-    }
-    
-    func bend(_ id: UUID, _ x: Float) {
-        if let (_, _, channel) = notesPlayed[id] {
-            sampler.sendPitchBend(pitchBend(x), onChannel: channel)
-        } else {
-            print("failed to bend")
-        }
-    }
-    
-    func unbend() {
-        for channel in channelsUsed {
-            sampler.sendPitchBend(UInt16.init(maxPitchBend / 2), onChannel: channel)
-        }
-    }
-    
-    func sustain(_ id: UUID) {
-        notesSustained.insert(id)
-    }
-    
-    func unsustain() {
-        for id in notesSustained {
-            unplay(id)
-        }
-        notesSustained = []
-    }
-    
-    func loadInstrument(_ instrument: UInt8) {
-        if let url = Bundle.main.url(forResource: "SGM-V2.01", withExtension: "sf2"),
-           let _ = try? sampler.loadSoundBankInstrument(
-            at: url, program: instrument,
-            bankMSB: UInt8(kAUSampler_DefaultMelodicBankMSB),
-            bankLSB: UInt8(kAUSampler_DefaultBankLSB))
-        {
-            print("instrument \(instrument) loaded")
-        } else {
-            print("locadSoundBankInstrument failed")
-        }
-    }
-}
-
-let color0 = Color.white
-let color1 = Color.mint
-let colorActive = Color.pink
-
-struct Key: View {
-    @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var observable: Observable
-
-    @State var id = UUID()
-    @State var isPlayed = false
-    @State var isSustained = false
-    @State var x: Float = 0.5
-    let number: Int
-
     var body: some View {
-        let note = Note(number)
-        let isBlack = note.isBlack(observable.root)
+        let isBlack = isBlack
         let colorFore: Color = isBlack ? color0 : color1
         let colorBack: Color = isBlack ? color1 : color0
         GeometryReader { geometry in
@@ -260,8 +112,8 @@ struct Key: View {
                     .fill(colorBack)
                     .frame(maxWidth: .infinity)
                 
-                if(isPlayed) {
-                    let opacity: Double = 1 - abs(Double(x) - 0.5)
+                if(observable.played.contains(number)) {
+                    let opacity = Double(abs(diff))
                     
                     RoundedRectangle(cornerRadius: 8)
                         .fill(colorActive)
@@ -279,78 +131,33 @@ struct Key: View {
                         .frame(width: 3)
                 }
                 
-                Text(note.name).foregroundColor(colorFore)
+                Text(name).foregroundColor(colorFore)
             }
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged() { action in
-                        if(action.startLocation == action.location) {
-                            // begin
-                            
-                            if(observable.bends) {
-                                observable.sampler.play(id, number, x)
-                            } else {
-                                observable.sampler.play(id, number)
-                            }
-                            isPlayed = true
-                        } else {
-                            // move
-                            
-                            x = Float(action.location.x / geometry.size.width)
-                            let y = Float(action.location.y / geometry.size.height)
-                            
-                            if(between(x, min: 0, max: 1) && between(y, min: 0, max: 1)) {
-                                if(observable.bends) {
-                                    observable.sampler.bend(id, x)
-                                }
-                            } else {
-                                observable.sampler.unplay(id)
-                                isPlayed = false
-                            }
-                        }
-                    }.onEnded() { value in
-                        if(observable.sustains) {
-                            observable.sampler.sustain(id)
-                            isSustained = true
-                        } else {
-                            observable.sampler.unplay(id)
-                            isPlayed = false
-                        }
-                    }
-            )
         }
     }
 }
 
 struct ContentView: View {
     @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var observable: Observable
-
-    @State var bendsAlways = false
-    @State var bendsCurrently = false
-    @State var sustainsAlways = false
-    @State var sustainsCurrently = false
-    @State var octave: Int = 0
-    @State var noteMinKey: Int = 60 - 3
-    @State var nKeys: Int = 10
-    @State var instrument: UInt8 = 0
+    @ObservedObject var observable = Observable()
     
     var body: some View {
         VStack{
             HStack {
-                Toggle("always sustain", isOn: $sustainsAlways)
-                
-                Toggle("always bend", isOn: $bendsAlways)
+                Toggle("always sustain", isOn: $observable.sustainsAlways)
+                Toggle("always bend", isOn: $observable.bendsAlways)
                 
                 LabeledContent("oct.") {
-                    Stepper(value: $octave) {
-                        Text("\(octave)")
-                    }
+                    Stepper(
+                        onIncrement: { observable.numberLowest += 12 },
+                        onDecrement: { observable.numberLowest -= 12 }
+                    ) {}
                 }
                 LabeledContent("min.") {
-                    Stepper(value: $noteMinKey) {
-                        Text("\(Note(noteMinKey).name)")
-                    }
+                    Stepper(
+                        onIncrement: { observable.numberLowest += 1 },
+                        onDecrement: { observable.numberLowest -= 1 }
+                    ) {}
                 }
                 LabeledContent("root") {
                     Stepper(value: $observable.root, in: 0...11) {
@@ -358,18 +165,15 @@ struct ContentView: View {
                     }
                 }
                 LabeledContent("col.") {
-                    Stepper(value: $nKeys, in: 1...24) {
-                        Text("\(nKeys)")
+                    Stepper(value: $observable.nKeys, in: 1...24) {
+                        Text("\(observable.nKeys)")
                     }
                 }
                 LabeledContent("inst.") {
-                    Picker("instrument", selection: $instrument) {
+                    Picker("instrument", selection: $observable.instrument) {
                         ForEach(0 ..< 128) { i in
                             Text("\(i)").tag(UInt8.init(i))
                         }
-                    }
-                    .onChange(of: instrument) { _ in
-                        observable.sampler.loadInstrument(instrument)
                     }
                     .pickerStyle(MenuPickerStyle())
                     .frame(minHeight: 0)
@@ -381,75 +185,58 @@ struct ContentView: View {
             }
         }
         GeometryReader { geometry in
-            HStack(spacing: 1) {
-                let nNotes = nKeys * 2 + 1
-                
-                VStack(spacing: 1) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(observable.bends ? colorActive : color1)
-                        Text("bend").foregroundColor(color0)
-                    }
-                    .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
-                    .simultaneousGesture(DragGesture(minimumDistance: 0)
-                        .onChanged() { _ in
-                            bendsCurrently = true
-                            observable.bends = bendsAlways || bendsCurrently
-                        }
-                        .onEnded() { _ in
-                            bendsCurrently = false
-                            observable.bends = bendsAlways || bendsCurrently
-                        }
-                    )
+            ZStack {
+                HStack(spacing: 1) {
+                    let nNotes = observable.nKeys * 2 + 1
                     
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(observable.sustains ? colorActive : color0)
-                        
-                        if(colorScheme == .light && !observable.sustains) {
+                    VStack(spacing: 1) {
+                        ZStack {
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(color1, lineWidth: 0.5)
+                                .fill(observable.bends ? colorActive : color1)
+                            Text("bend").foregroundColor(color0)
                         }
+                        .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
                         
-                        Text("sustain").foregroundColor(color1)
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(observable.sustains ? colorActive : color0)
+                            
+                            if(colorScheme == .light && !observable.sustains) {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(color1, lineWidth: 0.5)
+                            }
+                            
+                            Text("sustain").foregroundColor(color1)
+                        }
+                        .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
                     }
-                    .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
-                    .simultaneousGesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged() { _ in
-                                sustainsCurrently = true
-                                observable.sustains = sustainsAlways || sustainsCurrently
+                    
+                    GeometryReader { geometryKeyboard in
+                        ZStack {
+                            VStack(spacing: 1) {
+                                
+                                ForEach(0..<2, id: \.self) { _ in
+                                    HStack(spacing: 1) {
+                                        Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                        
+                                        ForEach(0..<observable.nKeys, id: \.self) { i in
+                                            Key(number: observable.numberLowest + i * 2 + 1)
+                                        }
+                                    }
+                                    HStack(spacing: 1) {
+                                        ForEach(0..<observable.nKeys, id: \.self) { i in
+                                            Key(number: observable.numberLowest + i * 2)
+                                        }
+                                        
+                                        Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                    }
+                                }
                             }
-                            .onEnded() { _ in
-                                sustainsCurrently = false
-                                observable.sustains = sustainsAlways || sustainsCurrently
-                            }
-                    )
+                        }
+                    }
                 }
                 
-                GeometryReader { geometryKeyboard in
-                    ZStack {
-                        VStack(spacing: 1) {
-                            
-                            ForEach(0..<2, id: \.self) { _ in
-                                HStack(spacing: 1) {
-                                    Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
-                                    
-                                    ForEach(0..<nKeys, id: \.self) { i in
-                                        Key(number: i * 2 + 1 + noteMinKey + octave * 12)
-                                    }
-                                }
-                                HStack(spacing: 1) {
-                                    ForEach(0..<nKeys, id: \.self) { i in
-                                        Key(number: i * 2 + noteMinKey + octave * 12)
-                                    }
-                                    
-                                    Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
-                                }
-                            }
-                        }
-                    }
-                }
+                TouchRepresentable(observable: observable)
             }
         }
     }
