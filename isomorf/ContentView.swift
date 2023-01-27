@@ -22,6 +22,8 @@ func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Boo
 }
 
 class Observable: ObservableObject {
+    @Published var timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+    
     @Published var sampler = Sampler()
     
     @Published var sustains: Bool = false {
@@ -66,80 +68,18 @@ class Observable: ObservableObject {
             sampler.loadInstrument(instrument)
         }
     }
-    
-    @Published var played: [Int] = []
 }
 
-let color0 = Color.white
-let color1 = Color.mint
-let colorActive = Color.pink
-
-struct Key: View {
-    @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var observable: Observable
-    
-    @State var diff: Float = 0
-    let number: Number
-    
-    var klass: Int {
-        return (number % 12 + 12) % 12
-    }
-    
-    var octave: Int {
-        return number / 12
-    }
-    
-    let standardOctave = 5
-    var name: String {
-        if(standardOctave <= octave) {
-            return klass.description + String(repeating: "'", count: Int(octave - standardOctave))
-        } else {
-            return String(repeating: "'", count: Int(standardOctave - octave)) + klass.description
-        }
-    }
-    
-    var isBlack: Bool {
-        return [1, 3, 6, 8, 10].map { ($0 + observable.root) % 12 }.contains(klass)
-    }
-    
-    var body: some View {
-        let isBlack = isBlack
-        let colorFore: Color = isBlack ? color0 : color1
-        let colorBack: Color = isBlack ? color1 : color0
-        GeometryReader { geometry in
-            ZStack(alignment: .center) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(colorBack)
-                    .frame(maxWidth: .infinity)
-                
-                if(observable.played.contains(number)) {
-                    let opacity = Double(abs(diff))
-                    
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(colorActive)
-                        .frame(maxWidth: .infinity)
-                        .opacity(observable.bends ? opacity : 1)
-                } else if(colorScheme == .light && !isBlack) {
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(color1, lineWidth: 0.5)
-                        .frame(maxWidth: .infinity)
-                }
-                
-                HStack(spacing: 0) {
-                    Rectangle()
-                        .fill(colorFore.opacity(0.4))
-                        .frame(width: 3)
-                }
-                
-                Text(name).foregroundColor(colorFore)
-            }
-        }
+extension Date {
+    static func - (a: Date, b: Date) -> TimeInterval {
+        return a.timeIntervalSinceReferenceDate - b.timeIntervalSinceReferenceDate
     }
 }
 
 struct ContentView: View {
     @Environment(\.colorScheme) var colorScheme
     @ObservedObject var observable = Observable()
+    @State var now = Date()
     
     var body: some View {
         VStack{
@@ -155,8 +95,8 @@ struct ContentView: View {
                 }
                 LabeledContent("min.") {
                     Stepper(
-                        onIncrement: { observable.numberLowest += 1 },
-                        onDecrement: { observable.numberLowest -= 1 }
+                        onIncrement: { observable.numberLowest += 12 },
+                        onDecrement: { observable.numberLowest -= 2 }
                     ) {}
                 }
                 LabeledContent("root") {
@@ -191,18 +131,18 @@ struct ContentView: View {
                     
                     VStack(spacing: 1) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: radius)
                                 .fill(observable.bends ? colorActive : color1)
                             Text("bend").foregroundColor(color0)
                         }
                         .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
                         
                         ZStack {
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: radius)
                                 .fill(observable.sustains ? colorActive : color0)
                             
                             if(colorScheme == .light && !observable.sustains) {
-                                RoundedRectangle(cornerRadius: 8)
+                                RoundedRectangle(cornerRadius: radius)
                                     .stroke(color1, lineWidth: 0.5)
                             }
                             
@@ -214,30 +154,35 @@ struct ContentView: View {
                     GeometryReader { geometryKeyboard in
                         ZStack {
                             VStack(spacing: 1) {
-                                
                                 ForEach(0..<2, id: \.self) { _ in
                                     HStack(spacing: 1) {
-                                        Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                        Key(observable: observable,
+                                            now: $now, isHalf: true, number: observable.numberLowest - 1)
+                                            .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
                                         
                                         ForEach(0..<observable.nKeys, id: \.self) { i in
-                                            Key(number: observable.numberLowest + i * 2 + 1)
+                                            Key(observable: observable,
+                                                now: $now, isHalf: false, number: observable.numberLowest + i * 2 + 1)
                                         }
                                     }
                                     HStack(spacing: 1) {
                                         ForEach(0..<observable.nKeys, id: \.self) { i in
-                                            Key(number: observable.numberLowest + i * 2)
+                                            Key(observable: observable,
+                                                now: $now, isHalf: false, number: observable.numberLowest + i * 2)
                                         }
-                                        
-                                        Rectangle().fill(.clear).frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+
+                                        Key(observable: observable,
+                                            now: $now, isHalf: true, number: observable.numberLowest + observable.nKeys * 2)
+                                            .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
                                     }
                                 }
                             }
                         }
                     }
                 }
-                
-                TouchRepresentable(observable: observable)
             }
+
+            TouchRepresentable(observable: observable)
         }
     }
 }

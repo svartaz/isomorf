@@ -10,6 +10,7 @@
 		A45ABC0C297FE5FD00A59A49 /* SGM-V2.01.sf2 in Resources */ = {isa = PBXBuildFile; fileRef = A45ABC0B297FE5FC00A59A49 /* SGM-V2.01.sf2 */; };
 		A45ABC0E2982EC0B00A59A49 /* Sampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A45ABC0D2982EC0A00A59A49 /* Sampler.swift */; };
 		A45ABC102982ECD300A59A49 /* TouchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A45ABC0F2982ECD300A59A49 /* TouchView.swift */; };
+		A45ABC12298430A800A59A49 /* Key.swift in Sources */ = {isa = PBXBuildFile; fileRef = A45ABC11298430A800A59A49 /* Key.swift */; };
 		A4FEB94629779D3900D6D7B4 /* isomorfApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4FEB94529779D3900D6D7B4 /* isomorfApp.swift */; };
 		A4FEB94829779D3900D6D7B4 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4FEB94729779D3900D6D7B4 /* ContentView.swift */; };
 		A4FEB94A29779D3A00D6D7B4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A4FEB94929779D3A00D6D7B4 /* Assets.xcassets */; };
@@ -39,6 +40,7 @@
 		A45ABC0B297FE5FC00A59A49 /* SGM-V2.01.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; name = "SGM-V2.01.sf2"; path = "../../../Downloads/SGM-V2.01.sf2"; sourceTree = "<group>"; };
 		A45ABC0D2982EC0A00A59A49 /* Sampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sampler.swift; sourceTree = "<group>"; };
 		A45ABC0F2982ECD300A59A49 /* TouchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchView.swift; sourceTree = "<group>"; };
+		A45ABC11298430A800A59A49 /* Key.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Key.swift; sourceTree = "<group>"; };
 		A4FEB94229779D3900D6D7B4 /* isomorf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = isomorf.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A4FEB94529779D3900D6D7B4 /* isomorfApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = isomorfApp.swift; sourceTree = "<group>"; };
 		A4FEB94729779D3900D6D7B4 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -103,6 +105,7 @@
 				A4FEB94B29779D3A00D6D7B4 /* Preview Content */,
 				A45ABC0D2982EC0A00A59A49 /* Sampler.swift */,
 				A45ABC0F2982ECD300A59A49 /* TouchView.swift */,
+				A45ABC11298430A800A59A49 /* Key.swift */,
 			);
 			path = isomorf;
 			sourceTree = "<group>";
@@ -255,6 +258,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A45ABC102982ECD300A59A49 /* TouchView.swift in Sources */,
+				A45ABC12298430A800A59A49 /* Key.swift in Sources */,
 				A4FEB94829779D3900D6D7B4 /* ContentView.swift in Sources */,
 				A4FEB94629779D3900D6D7B4 /* isomorfApp.swift in Sources */,
 				A45ABC0E2982EC0B00A59A49 /* Sampler.swift in Sources */,

@@ -21,7 +21,7 @@ struct TouchRepresentable: UIViewRepresentable {
 enum TouchState: Equatable {
     case bend
     case sustain
-    case key(_ number: Int)
+    case key(_ number: Int, _ diff: Float)
 }
 
 class TouchView: UIView, UIGestureRecognizerDelegate {
@@ -35,72 +35,11 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         
         super.init(frame: .zero)
         self.isMultipleTouchEnabled = true
+        //self.isUserInteractionEnabled = false
     }
     
     required init(coder: NSCoder) {
         fatalError("init(coder:) not implemented")
-    }
-    
-    func numberTouched(_ touch: UITouch) -> (Int, Float) {
-        let location = touch.location(in: self)
-        let x = Float(location.x)
-        let y = Float(location.y)
-        let width = Float(self.bounds.width)
-        let height = Float(self.bounds.height)
-        
-        let numberF: Float = x / width * Float((observable.nKeys + 1) * 2 + 1) + Float(observable.numberLowest - 3)
-        
-        let isUpper: Bool = between(y, min: 0, max: height / 4) || between(y, min: height / 2, max: height / 4 * 3)
-        let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
-        
-        let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
-        return (number, numberF - Float(number))
-    }
-    
-    func play(_ touch: UITouch) {
-        let (number, diff) = numberTouched(touch)
-        if(observable.bends) {
-            observable.sampler.play(touch.hash, number, diff)
-        } else {
-            observable.sampler.play(touch.hash, number)
-        }
-        
-        observable.played = observable.sampler.played.values.flatMap { notes in
-            return notes.map { (note, _) in
-                return observable.sampler.toNumber(note)
-            }
-        }
-    }
-    
-    func unplay(_ touch: UITouch) {
-        observable.sampler.unplay(touch.hash)
-        observable.played = observable.sampler.played.values.flatMap { notes in
-            return notes.map { (note, _) in
-                return observable.sampler.toNumber(note)
-            }
-        }
-    }
-    
-    func bend(_ touch: UITouch) {
-        let (_, diff) = numberTouched(touch)
-        observable.sampler.bend(touch.hash, diff)
-    }
-    
-    func sustain(_ touch: UITouch) {
-        observable.sampler.sustain(touch.hash)
-    }
-    
-    func release(_ touch: UITouch) {
-        if(observable.sustains) {
-            sustain(touch)
-        } else {
-            unplay(touch)
-        }
-    }
-    
-    func update() {
-        observable.sustainsCurrently = touchStates.values.contains(where: { $0 == .sustain})
-        observable.bendsCurrently = touchStates.values.contains(where: { $0 == .bend})
     }
     
     func touchState(_ touch: UITouch) -> TouchState {
@@ -118,73 +57,155 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
                 return .sustain
             }
         } else {
-            let (number, _) = numberTouched(touch)
-            return .key(number)
+            let isUpper: Bool = between(y, min: 0, max: height / 4) || between(y, min: height / 2, max: height / 4 * 3)
+            let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
+            
+            let numberF: Float = x / width * Float((observable.nKeys + 1) * 2 + 1) + Float(observable.numberLowest - 3)
+            let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
+            return .key(number, numberF - Float(number))
+        }
+    }
+    
+    func update() {
+        observable.sustainsCurrently = touchStates.values.contains(where: {
+            switch $0 {
+            case .sustain:
+                return true
+            default:
+                return false
+            }
+        })
+        
+        observable.bendsCurrently = touchStates.values.contains(where: {
+            switch $0 {
+            case .bend:
+                return true
+            default:
+                return false
+            }
+        })
+    }
+    
+    func begin(_ touch: UITouch, _ touchState: TouchState) {
+        if case let .key(number, diff) = touchState {
+            play(number, diff)
+        }
+        
+        touchStates[touch.hash] = touchState
+    }
+    
+    func end(_ touchState: TouchState) {
+        if case let .key(number, _) = touchState {
+            if(observable.sustains) {
+                observable.sampler.sustain(Sampler.toNote(number))
+            } else {
+                _ = observable.sampler.unplay(Sampler.toNote(number))
+            }
         }
     }
     
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
+        touches.forEach { touch in
             let touchState = touchState(touch)
+            if case let .key(number, diff) = touchState {
+                play(number, diff)
+            }
+            
             touchStates[touch.hash] = touchState
-            switch touchState {
-            case .key(_):
-                play(touch)
-            case .sustain, .bend:
-                update()
-            }
-        }
-    }
-    
-    func touchesCancelledOrEnded(_ touches: Set<UITouch>) {
-        for touch in touches {
-            let touchState = touchState(touch)
-            
-            switch touchState {
-            case .key(_):
-                release(touch)
-            case .sustain, .bend:
-                break
-            }
-            
-            touchStates.removeValue(forKey: touch.hash)
-            update()
-        }
-    }
-    
-    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        for touch in touches {
-            let touchState = touchState(touch)
-            
-            if let touchStateOld = touchStates[touch.hash] {
-                switch touchStateOld {
-                case .key(_):
-                    if(touchStateOld == touchState) {
-                        if(observable.bends) {
-                            bend(touch)
-                        }
-                    } else {
-                        release(touch)
-                        play(touch)
-                    }
-                default:
-                    play(touch)
-                }
-            } else {
-                print("TouchView failed to move")
-            }
-            
-            touchStates.updateValue(touchState, forKey: touch.hash)
         }
         
         update()
     }
     
+    func touchesEndedOrCancelled(_ touches: Set<UITouch>) {
+        touches.forEach { touch in
+            let touchState = touchState(touch)
+            
+            switch touchState {
+            case .key(_, _):
+                break
+            default:
+                touchStates.removeValue(forKey: touch.hash)
+            }
+        }
+        
+        update()
+        
+        touches.forEach { touch in
+            let touchState = touchState(touch)
+            
+            switch touchState {
+            case let .key(number, _):
+                release(number)
+                touchStates.removeValue(forKey: touch.hash)
+            default:
+                break
+            }
+        }
+    }
+    
+    func play(_ number: Number, _ diff: Float) {
+        observable.sampler.play(Sampler.toNote(number), observable.bends ? diff : 0)
+    }
+    
+    func release(_ number: Number) {
+        let note = Sampler.toNote(number)
+        
+        if(observable.sustains) {
+            observable.sampler.sustain(note)
+        } else {
+            _ = observable.sampler.unplay(note)
+        }
+    }
+    
+    func bend(_ number: Number, _ diff: Float) {
+        if(observable.bends) {
+            observable.sampler.bend(Sampler.toNote(number), diff)
+        }
+    }
+    
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        let touchStatesOld = touchStates
+        
+        touches.forEach { touch in
+            touchStates[touch.hash] = touchState(touch)
+        }
+        
+        update()
+        
+        touches.forEach { touch in
+            let touchStateOld = touchStatesOld[touch.hash]!
+            let touchState = touchStates[touch.hash]!
+            
+            switch touchStateOld {
+            case let .key(numberOld, _):
+                switch touchState {
+                case let .key(number, diff):
+                    if(numberOld == number) {
+                        bend(number, diff)
+                    } else {
+                        release(numberOld)
+                        play(number, diff)
+                    }
+                default:
+                    release(numberOld)
+                }
+            default:
+                switch touchState {
+                case let .key(number, diff):
+                    play(number, diff)
+                default:
+                    break
+                }
+            }
+        }
+    }
+    
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        touchesCancelledOrEnded(touches)
+        //touchesEndedOrCancelled(touches)
     }
     
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        touchesCancelledOrEnded(touches)
+        touchesEndedOrCancelled(touches)
     }
 }
