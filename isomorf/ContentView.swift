@@ -82,48 +82,44 @@ struct ContentView: View {
     @State var now = Date()
     
     var body: some View {
-        VStack{
-            HStack {
-                Toggle("always sustain", isOn: $observable.sustainsAlways)
-                Toggle("always bend", isOn: $observable.bendsAlways)
-                
-                LabeledContent("oct.") {
-                    Stepper(
-                        onIncrement: { observable.numberLowest += 12 },
-                        onDecrement: { observable.numberLowest -= 12 }
-                    ) {}
-                }
-                LabeledContent("min.") {
-                    Stepper(
-                        onIncrement: { observable.numberLowest += 12 },
-                        onDecrement: { observable.numberLowest -= 2 }
-                    ) {}
-                }
-                LabeledContent("root") {
-                    Stepper(value: $observable.root, in: 0...11) {
-                        Text("\(observable.root)")
-                    }
-                }
-                LabeledContent("col.") {
-                    Stepper(value: $observable.nKeys, in: 1...24) {
-                        Text("\(observable.nKeys)")
-                    }
-                }
-                LabeledContent("inst.") {
-                    Picker("instrument", selection: $observable.instrument) {
-                        ForEach(0 ..< 128) { i in
-                            Text("\(i)").tag(UInt8.init(i))
-                        }
-                    }
-                    .pickerStyle(MenuPickerStyle())
-                    .frame(minHeight: 0)
-                    .clipped()
+        HStack {
+            Toggle("sustain", isOn: $observable.sustainsAlways)
+            Toggle("bend", isOn: $observable.bendsAlways)
+            
+            LabeledContent("oct.") {
+                Stepper(
+                    onIncrement: { observable.numberLowest += 12 },
+                    onDecrement: { observable.numberLowest -= 12 }
+                ) {}
+            }
+            LabeledContent("min.") {
+                Stepper(
+                    onIncrement: { observable.numberLowest += 12 },
+                    onDecrement: { observable.numberLowest -= 2 }
+                ) {}
+            }
+            LabeledContent("root") {
+                Stepper(value: $observable.root, in: 0...11) {
+                    Text("\(observable.root)")
                 }
             }
-            HStack {
-                
+            LabeledContent("col.") {
+                Stepper(value: $observable.nKeys, in: 1...24) {
+                    Text("\(observable.nKeys)")
+                }
             }
+
+            Picker("instrument", selection: $observable.instrument) {
+                ForEach(0 ..< 128) { i in
+                    Text("\(i) \(generalMidi[i])")
+                        .tag(UInt8.init(i))
+                        .lineLimit(1, reservesSpace: true)
+                }
+            }
+            .pickerStyle(MenuPickerStyle())
+            .frame(minWidth: 200)
         }
+        
         GeometryReader { geometry in
             ZStack {
                 HStack(spacing: 1) {
@@ -158,7 +154,7 @@ struct ContentView: View {
                                     HStack(spacing: 1) {
                                         Key(observable: observable,
                                             now: $now, isHalf: true, number: observable.numberLowest - 1)
-                                            .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
                                         
                                         ForEach(0..<observable.nKeys, id: \.self) { i in
                                             Key(observable: observable,
@@ -170,10 +166,10 @@ struct ContentView: View {
                                             Key(observable: observable,
                                                 now: $now, isHalf: false, number: observable.numberLowest + i * 2)
                                         }
-
+                                        
                                         Key(observable: observable,
                                             now: $now, isHalf: true, number: observable.numberLowest + observable.nKeys * 2)
-                                            .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
                                     }
                                 }
                             }
@@ -181,8 +177,9 @@ struct ContentView: View {
                     }
                 }
             }
-
+            
             TouchRepresentable(observable: observable)
         }
     }
 }
+

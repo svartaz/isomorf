@@ -54,8 +54,8 @@ struct Key: View {
             
             let opacity: Double = {
                 if let date = observable.sampler.sustained[Sampler.toNote(number)] {
-                    let halfLife: Double = 3
-                    return pow(2, -pow(now - date, pow(halfLife, 2))) * 0.8 + 0.2
+                    let minOpacity = 0.4
+                    return (1.0 - min(1, now - date)) * (1 - minOpacity) + minOpacity
                 } else if let (_, _) = observable.sampler.played[Sampler.toNote(number)] {
                     return 1
                 } else {
@@ -76,7 +76,6 @@ struct Key: View {
                 .frame(maxWidth: .infinity)
                 .opacity(opacity)
                 .saturation(1 - abs(Double(diff)))
-                //.hueRotation(Angle(degrees: Double(diff) * 360 / 16))
                 .onReceive(observable.timer, perform: { _ in
                     now = Date()
                 })
