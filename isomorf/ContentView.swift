@@ -38,8 +38,8 @@ enum Layout {
 
 enum Config: String, CaseIterable, Identifiable {
     case janko = "janko"
-    case linn = "linn"
     case linn4 = "linn (1, 4)"
+    case linn = "linn"
     case linn6 = "linn (1, 6)"
     case dodeka = "dodeka"
     case harpejji = "harpejji"

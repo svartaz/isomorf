@@ -92,24 +92,27 @@ class Observable: ObservableObject {
                 layout = .grid
                 gridX = 1
                 gridY = 4
+                numberLowest -= 12
             case .linn:
                 layout = .grid
                 gridX = 1
                 gridY = 5
+                numberLowest -= 12
             case .linn6:
                 layout = .grid
                 gridX = 1
                 gridY = 6
+                numberLowest -= 12
+            case .dodeka:
+                layout = .grid
+                gridX = 1
+                nRows = 1
             case .harpejji:
                 layout = .grid
                 gridX = 5
                 gridY = 1
                 nRows = 12
-                nCols = 4
-            case .dodeka:
-                layout = .grid
-                gridX = 1
-                nRows = 1
+                nCols = 8
             }
         }
     }
