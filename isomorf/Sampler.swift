@@ -11,6 +11,20 @@ typealias Channel = UInt8
 typealias Note = UInt8
 typealias Number = Int
 
+enum Play: Hashable {
+    case touch(Int)
+    case sustain(Date)
+    
+    func hash(into hasher: inout Hasher) {
+        switch self {
+        case .touch(let touchHash):
+            hasher.combine(touchHash)
+        case .sustain(let date):
+            hasher.combine(date)
+        }
+    }
+}
+
 struct Sampler {
     private var engine = AVAudioEngine()
     private var unitSampler = AVAudioUnitSampler()
@@ -18,12 +32,7 @@ struct Sampler {
     private let maxPitchBend: Int = 16384
     private let maxNoteBend: Int = 4
     
-    var played: [Note: (Channel, Float)] = [:]
-    var sustained: [Note: Date] = [:]
-    
-    var channelsUsed: [Channel] {
-        return played.values.map { (channel, _) in return channel}
-    }
+    var played: [Note: (Play, Channel, Float)] = [:]
     
     static func toNote(_ number: Number) -> Note {
         return UInt8.init(number - 2)
@@ -51,57 +60,65 @@ struct Sampler {
         return UInt16.init(Int(pitchBendF))
     }
     
-    mutating func play(_ note: Note, _ diff: Float) {
-        if let channel = unplay(note) ?? (0..<128).first(where: { !channelsUsed.contains($0) }) {
+    mutating func play(_ touchHash: Int, _ note: Note, _ diff: Float) {
+        if let (_, channel, diff) = played[note] {
+            unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
+            played[note] = (.touch(touchHash), channel, diff)
+            
+        } else if let channel = (0..<128).first(where: { !played.keys.contains($0) }) {
             unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
             unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
-            played[note] = (channel, diff)
-            //print("Sampler played note \(note)")
+            played[note] = (.touch(touchHash), channel, diff)
+            
         } else {
             print("Sampler failed to play note \(note)")
         }
     }
     
-    mutating func unplay(_ note: Note) -> Channel? {
-        if let (channel, _) = played[note] {
-            unitSampler.stopNote(note, onChannel: channel)
-            played.removeValue(forKey: note)
-            //print("Sampler unplayed note \(note)")
-            return channel
-        } else {
-            print("Sampler failed to unplay note \(note)")
-            return nil
+    mutating func unplay(_ touchHash: Int) {
+        played.forEach { (note: Note, value) in
+            if case let (.touch(th), channel, _) = value {
+                if(th == touchHash) {
+                    unitSampler.stopNote(note, onChannel: channel)
+                    played.removeValue(forKey: note)
+                }
+            }
         }
     }
     
     mutating func bend(_ note: Note, _ diff: Float) {
-        if let (channel, _) = played[note] {
-            unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
-            played[note] = (channel, diff)
-            //print("Sampler bent note \(note)")
-        } else {
-            print("Sampler failed to bend note \(note)")
+        played.forEach { (n: Note, value) in
+            let (p, channel, _) = value
+            if(n == note) {
+                unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
+                played[n] = (p, channel, diff)
+            }
         }
     }
     
-    func unbend() {
-        played.values.forEach { (channel, _) in
-            unitSampler.sendPitchBend(UInt16.init(maxPitchBend / 2), onChannel: channel)
+    mutating func unbend() {
+        played.forEach { (n: Note, value) in
+            let (p, channel, _) = value
+            unitSampler.sendPitchBend(pitchBend(0), onChannel: channel)
+            played[n] = (p, channel, 0)
         }
-        //print("Sampler unbent")
     }
     
-    mutating func sustain(_ note: Note) {
-        sustained[note] = Date()
-        //print("Sampler sustained note \(note)")
+    mutating func sustain(_ touchHash: Int) {
+        played.forEach { (note: Note, value) in
+            if case let (.touch(_), channel, diff) = value {
+                played[note] = (.sustain(Date()), channel, diff)
+            }
+        }
     }
     
     mutating func unsustain() {
-        sustained.forEach { (note, _) in
-            _ = unplay(note)
+        played.forEach { (note: Note, value) in
+            if case let (.sustain(_), channel, _) = value {
+                unitSampler.stopNote(note, onChannel: channel)
+                played.removeValue(forKey: note)
+            }
         }
-        sustained.removeAll()
-        //print("Sampler unsustained")
     }
     
     func loadInstrument(_ instrument: UInt8) {

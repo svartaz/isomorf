@@ -21,7 +21,7 @@ struct TouchRepresentable: UIViewRepresentable {
 enum TouchState: Equatable {
     case bend
     case sustain
-    case key(_ number: Int, _ diff: Float)
+    case key(_ number: Number, _ diff: Float)
 }
 
 class TouchView: UIView, UIGestureRecognizerDelegate {
@@ -35,7 +35,6 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         
         super.init(frame: .zero)
         self.isMultipleTouchEnabled = true
-        //self.isUserInteractionEnabled = false
     }
     
     required init(coder: NSCoder) {
@@ -88,18 +87,18 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     
     func begin(_ touch: UITouch, _ touchState: TouchState) {
         if case let .key(number, diff) = touchState {
-            play(number, diff)
+            play(touch.hash, number, diff)
         }
         
         touchStates[touch.hash] = touchState
     }
     
-    func end(_ touchState: TouchState) {
-        if case let .key(number, _) = touchState {
+    func end(_ touch: UITouch, _ touchState: TouchState) {
+        if case .key(_, _) = touchState {
             if(observable.sustains) {
-                observable.sampler.sustain(Sampler.toNote(number))
+                observable.sampler.sustain(touch.hash)
             } else {
-                _ = observable.sampler.unplay(Sampler.toNote(number))
+                observable.sampler.unplay(touch.hash)
             }
         }
     }
@@ -108,7 +107,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         touches.forEach { touch in
             let touchState = touchState(touch)
             if case let .key(number, diff) = touchState {
-                play(number, diff)
+                play(touch.hash, number, diff)
             }
             
             touchStates[touch.hash] = touchState
@@ -122,7 +121,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
             let touchState = touchState(touch)
             
             switch touchState {
-            case .key(_, _):
+            case .key:
                 break
             default:
                 touchStates.removeValue(forKey: touch.hash)
@@ -135,8 +134,8 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
             let touchState = touchState(touch)
             
             switch touchState {
-            case let .key(number, _):
-                release(number)
+            case .key:
+                release(touch.hash)
                 touchStates.removeValue(forKey: touch.hash)
             default:
                 break
@@ -144,17 +143,15 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         }
     }
     
-    func play(_ number: Number, _ diff: Float) {
-        observable.sampler.play(Sampler.toNote(number), observable.bends ? diff : 0)
+    func play(_ touchHash: Int, _ number: Number, _ diff: Float) {
+        observable.sampler.play(touchHash, Sampler.toNote(number), observable.bends ? diff : 0)
     }
     
-    func release(_ number: Number) {
-        let note = Sampler.toNote(number)
-        
+    func release(_ touchHash: Int) {
         if(observable.sustains) {
-            observable.sampler.sustain(note)
+            observable.sampler.sustain(touchHash)
         } else {
-            _ = observable.sampler.unplay(note)
+            observable.sampler.unplay(touchHash)
         }
     }
     
@@ -184,16 +181,16 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
                     if(numberOld == number) {
                         bend(number, diff)
                     } else {
-                        release(numberOld)
-                        play(number, diff)
+                        release(touch.hash)
+                        play(touch.hash, number, diff)
                     }
                 default:
-                    release(numberOld)
+                    release(touch.hash)
                 }
             default:
                 switch touchState {
                 case let .key(number, diff):
-                    play(number, diff)
+                    play(touch.hash, number, diff)
                 default:
                     break
                 }
