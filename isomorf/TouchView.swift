@@ -56,21 +56,25 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
                 return .sustain
             }
         } else {
+            let iF = (height - y) / height * Float(observable.nRows) - 0.5
+            let i = Int(round(iF))
+
             switch observable.layout {
             case .janko:
-                let isUpper: Bool = between(y, min: 0, max: height / 4) || between(y, min: height / 2, max: height / 4 * 3)
+                let isUpper: Bool = i % 2 == 1
                 let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
                 
-                let numberF: Float = x / width * Float((observable.nCols + 1) * 2 + 1) + Float(observable.numberLowest - 3)
+                let numberMin = Float(observable.numberLowest - 1)
+                let numberMax = numberMin + Float(observable.nCols * 2)
+                let numberF = x / (width - widthKey) * (numberMax - numberMin) + numberMin - 2
                 let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
+
                 return .key(number, numberF - Float(number))
-            case .linn:
+            case .grid:
                 let jF = (x - widthKey) / (width - widthKey) * Float(observable.nCols) - 0.5
                 let j = Int(round(jF))
-                let iF = (height - y) / height * Float(observable.nRows) - 0.5
-                let i = Int(round(iF))
                 
-                let number: Number = observable.linnNumber(i, j)
+                let number: Number = observable.gridNumber(i, j)
                 return .key(number, (jF - Float(j)) * observable.diffPerKey / 2)
             }
         }
