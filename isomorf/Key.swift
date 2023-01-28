@@ -53,23 +53,42 @@ struct Key: View {
                 .frame(maxWidth: .infinity)
             
             let opacity: Double = {
-                if let date = observable.sampler.sustained[Sampler.toNote(number)] {
+                
+                let dates = observable.sampler.played.compactMap { (note: Note, value) in
+                    if case let (.sustain(date), _, _) = value {
+                        if(note == Sampler.toNote(number)) {
+                            return date
+                        }
+                    }
+                    return nil
+                }
+                
+                if let date = dates.min() {
                     let minOpacity = 0.4
                     return (1.0 - min(1, now - date)) * (1 - minOpacity) + minOpacity
-                } else if let (_, _) = observable.sampler.played[Sampler.toNote(number)] {
-                    return 1
                 } else {
+                    for (note, value) in observable.sampler.played {
+                        if case (.touch(_), _, _) = value {
+                            if(note == Sampler.toNote(number)) {
+                                return 1
+                            }
+                        }
+                    }
+
                     return 0
                 }
             }()
             
-            let diff: Float = {
-                if let (_, diff) = observable.sampler.played[Sampler.toNote(number)] {
-                    return diff
-                } else {
-                    return Float(0)
+            let diff: Float =
+            observable.sampler.played.compactMap { (note: Note, value) in
+                    let (_, _, diff) = value
+                    if(note == Sampler.toNote(number)) {
+                        return diff
+                    } else {
+                        return nil
+                    }
                 }
-            }()
+                .max() ?? Float(0)
             
             RoundedRectangle(cornerRadius: radius)
                 .fill(colorActive)
