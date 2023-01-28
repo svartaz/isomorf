@@ -44,7 +44,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     func touchState(_ touch: UITouch) -> TouchState {
         let width = Float(self.bounds.width)
         let height = Float(self.bounds.height)
-        let widthKey = width / ((Float(observable.nKeys) + 1) * 2 + 1) * 2
+        let widthKey = width / ((Float(observable.nCols) + 1) * 2 + 1) * 2
         let location = touch.location(in: self)
         let x = Float(location.x)
         let y = Float(location.y)
@@ -56,12 +56,23 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
                 return .sustain
             }
         } else {
-            let isUpper: Bool = between(y, min: 0, max: height / 4) || between(y, min: height / 2, max: height / 4 * 3)
-            let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
-            
-            let numberF: Float = x / width * Float((observable.nKeys + 1) * 2 + 1) + Float(observable.numberLowest - 3)
-            let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
-            return .key(number, numberF - Float(number))
+            switch observable.layout {
+            case .janko:
+                let isUpper: Bool = between(y, min: 0, max: height / 4) || between(y, min: height / 2, max: height / 4 * 3)
+                let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
+                
+                let numberF: Float = x / width * Float((observable.nCols + 1) * 2 + 1) + Float(observable.numberLowest - 3)
+                let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
+                return .key(number, numberF - Float(number))
+            case .linn:
+                let jF = (x - widthKey) / (width - widthKey) * Float(observable.nCols) - 0.5
+                let j = Int(round(jF))
+                let iF = (height - y) / height * Float(observable.nRows) - 0.5
+                let i = Int(round(iF))
+                
+                let number: Number = observable.linnNumber(i, j)
+                return .key(number, (jF - Float(j)) * observable.diffPerKey / 2)
+            }
         }
     }
     
