@@ -52,7 +52,7 @@ struct KeyboardView: View {
     @ObservedObject var observable: Observable
     @State var now = Date()
     @State var geometry: GeometryProxy
-
+    
     var body: some View {
         HStack(spacing: 1) {
             let nNotes = observable.nCols * 2 + 1
@@ -61,7 +61,8 @@ struct KeyboardView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: radius)
                         .fill(observable.bends ? colorActive : color1)
-                    Text("bend").foregroundColor(color0)
+                    Text("bend")
+                        .foregroundColor(color0)
                 }
                 .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
                 
@@ -74,7 +75,8 @@ struct KeyboardView: View {
                             .stroke(color1, lineWidth: 0.5)
                     }
                     
-                    Text("sustain").foregroundColor(color1)
+                    Text("sustain")
+                        .foregroundColor(color1)
                 }
                 .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
             }
@@ -120,78 +122,126 @@ struct KeyboardView: View {
     }
 }
 
-
-
 struct ContentView: View {
     @ObservedObject var observable = Observable()
+    
+    func chord(_ numbers: [Number]) -> String {
+        let numberClasses: Set<Number> = Set(numbers.map { number in
+            return number % 12
+        })
+        
+        let patterns = [
+            ("dim", "dim", [0, 3, 6]),
+            ("dim9", "dim7", [0, 3, 6, 9]),
+            ("min6!", "m7-5", [0, 3, 6, 10]),
 
-    var body: some View {
-        VStack {
-            HStack {
-                Picker("layout", selection: $observable.layout) {
-                    Text("janko").tag(Layout.janko)
-                    Text("grid").tag(Layout.grid)
-                }
-                .pickerStyle(SegmentedPickerStyle())
+            ("min", "m", [0, 3, 7]),
+            ("min10", "m7", [0, 3, 7, 10]),
+            ("min11", "mM7", [0, 3, 7, 11]),
 
-                Picker("config", selection: $observable.config) {
-                    ForEach(Config.allCases) { config in
-                        Text(config.rawValue).tag(config)
+            ("maj", "", [0, 4, 7]),
+            ("maj6!,10", "7-5", [0, 4, 6, 10]),
+            ("maj10", "7", [0, 4, 7, 10]),
+            ("maj11", "M7", [0, 4, 7, 11]),
+            ("maj10,13", "-9", [0, 4, 7, 10, 1]),
+            ("maj10,14", "9", [0, 4, 7, 10, 2]),
+
+            ("aug", "aug", [0, 4, 8]),
+            ("aug11", "M7+5", [0, 4, 8, 11]),
+
+            ("sus", "sus4", [0, 5, 7]),
+            ("sus10", "7sus4", [0, 5, 7, 10])
+        ]
+        
+        for (name, nameTraditional, pattern) in patterns {
+            for root in 0..<12 {
+                if(numberClasses == Set(pattern.map { ($0 + root) % 12 })) {
+                    if(observable.isTraditional) {
+                        return "\(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][root])\(nameTraditional)"
+                    } else {
+                        return "\(root)\(name)"
                     }
                 }
-                .pickerStyle(MenuPickerStyle())
-                
-                LabeledContent("grid: (\(observable.gridX),\(observable.gridY))") {
-                    Stepper("", value: $observable.gridX)
-                    Stepper("", value: $observable.gridY)
-                }
-                 
-                LabeledContent("(col,row): (\(observable.nCols),\(observable.nRows))") {
-                    Stepper("", value: $observable.nCols, in: 1...24)
-                    Stepper("", value: $observable.nRows, in: 1...24)
-                }
-            }
-            
-            HStack {
-                Toggle("sustain", isOn: $observable.sustainsAlways)
-                Toggle("bend", isOn: $observable.bendsAlways)
-                
-                Spacer()
-                LabeledContent("oct.") {
-                    Stepper(
-                        onIncrement: { observable.numberLowest += 12 },
-                        onDecrement: { observable.numberLowest -= 12 }
-                    ) {}
-                }
-                LabeledContent("min.") {
-                    Stepper(
-                        onIncrement: { observable.numberLowest += 1 },
-                        onDecrement: { observable.numberLowest -= 1 }
-                    ) {}
-                }
-                LabeledContent("root") {
-                    Stepper(value: $observable.root, in: 0...11) {
-                        Text("\(observable.root)")
-                    }
-                }
-                
-                Spacer()
-                Picker("instrument", selection: $observable.instrument) {
-                    ForEach(0 ..< 128) { i in
-                        Text("\(i) \(generalMidi[i])")
-                            .tag(UInt8.init(i))
-                            .lineLimit(1, reservesSpace: true)
-                    }
-                }
-                .pickerStyle(MenuPickerStyle())
-                .frame(minWidth: 200)
             }
         }
         
-        GeometryReader { geometry in
-            ZStack {
-                KeyboardView(observable: observable, geometry: geometry)
-                TouchRepresentable(observable: observable)
+        return ""
+    }
+    
+    var body: some View {
+        TabView {
+            GeometryReader { geometry in
+                VStack(spacing: 0) {
+                    let touched: [Number] = observable.sampler.played
+                        .compactMap { (note, value) in
+                            let (p, _, _) = value
+                            if case .touch(_) = p {
+                                return Sampler.toNumber(note)
+                            }
+                            return nil
+                        }
+                    
+                    Text(chord(touched))
+                        .frame(minHeight: 32)
+
+                    ZStack {
+                        KeyboardView(observable: observable, geometry: geometry)
+                        TouchRepresentable(observable: observable)
+                    }
+                }
+            }
+            .tabItem {
+                Text("keybaord")
+            }
+            
+            Form {
+                Section {
+                    Picker("instrument", selection: $observable.instrument) {
+                        ForEach(0 ..< 128) { i in
+                            Text("\(i) \(generalMidi[i])")
+                                .tag(UInt8.init(i))
+                                .lineLimit(1, reservesSpace: true)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    
+                    Toggle("always sustain", isOn: $observable.sustainsAlways)
+                    Toggle("always bend", isOn: $observable.bendsAlways)
+                } header: {
+                    Text("sound")
+                }
+                
+                Section {
+                    Picker("preset", selection: $observable.config) {
+                        ForEach(Config.allCases) { config in
+                            Text(config.rawValue).tag(config)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    
+                    Picker("layout", selection: $observable.layout) {
+                        Text("janko").tag(Layout.janko)
+                        Text("grid").tag(Layout.grid)
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+
+                    if(observable.layout == .grid) {
+                        Stepper("\(observable.gridX) semitones right", value: $observable.gridX)
+                        Stepper("\(observable.gridY) semitones up", value: $observable.gridY)
+                    }
+
+                    Stepper("\(observable.nCols) columns", value: $observable.nCols, in: 1...24)
+                    Stepper("\(observable.nRows) rows", value: $observable.nRows, in: 1...24)
+
+                    Stepper("lowest note \(observable.numberLowest)", value: $observable.numberLowest)
+
+                    Toggle("traditional", isOn: $observable.isTraditional)
+                } header: {
+                    Text("layout")
+                }
+            }
+            .tabItem {
+                Text("preference")
             }
         }
     }

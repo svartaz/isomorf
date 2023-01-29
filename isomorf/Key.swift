@@ -31,11 +31,15 @@ struct Key: View {
     
     var name: String {
         let standardOctave = 5
-        
-        if(standardOctave <= octave) {
-            return klass.description + String(repeating: "'", count: Int(octave - standardOctave))
+
+        if(observable.isTraditional) {
+            return "\(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][klass])\(octave - standardOctave + 4)"
         } else {
-            return String(repeating: "'", count: Int(standardOctave - octave)) + klass.description
+            if(standardOctave <= octave) {
+                return klass.description + String(repeating: "'", count: Int(octave - standardOctave))
+            } else {
+                return String(repeating: "'", count: Int(standardOctave - octave)) + klass.description
+            }
         }
     }
     
