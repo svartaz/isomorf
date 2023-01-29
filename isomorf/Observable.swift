@@ -88,31 +88,39 @@ class Observable: ObservableObject {
             switch config {
             case .janko:
                 layout = .janko
+            case .dodeka:
+                layout = .grid
+                gridX = 1
+                nRows = 2
+                nCols = 12
+                gridY = 12
             case .linn4:
                 layout = .grid
                 gridX = 1
                 gridY = 4
+                nRows = 7
                 numberLowest -= 12
+                numberLowest = 60 - gridY * nRows / 2
             case .linn:
                 layout = .grid
                 gridX = 1
                 gridY = 5
+                nRows = 7
                 numberLowest -= 12
+                numberLowest = 60 - gridY * nRows / 2
             case .linn6:
                 layout = .grid
                 gridX = 1
                 gridY = 6
-                numberLowest -= 12
-            case .dodeka:
-                layout = .grid
-                gridX = 1
-                nRows = 1
+                nRows = 7
+                numberLowest = 60 - gridY * nRows / 2
             case .harpejji:
                 layout = .grid
                 gridX = 5
                 gridY = 1
                 nRows = 12
                 nCols = 8
+                numberLowest = 60 - gridY * nRows / 2
             }
         }
     }
