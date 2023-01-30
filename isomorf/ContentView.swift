@@ -124,6 +124,7 @@ struct KeyboardView: View {
 
 struct ContentView: View {
     @ObservedObject var observable = Observable()
+    @State var isPresented = false
     
     func chord(_ numbers: [Number]) -> String {
         let numberClasses: Set<Number> = Set(numbers.map { number in
@@ -196,6 +197,26 @@ struct ContentView: View {
             
             Form {
                 Section {
+                    LabeledContent("sound font") {
+                        if let url = observable.sampler.url {
+                            Text(url.description)
+                        }
+                        Button("load") {
+                            isPresented = true
+                        }
+                        .buttonStyle(.bordered)
+                        .fileImporter(isPresented: $isPresented, allowedContentTypes: [.audio], allowsMultipleSelection: false) {
+                            switch $0 {
+                            case .success(let urls):
+                                observable.sampler.url = urls.first
+                                print("View set url")
+                                observable.sampler.loadInstrument()
+                            case .failure:
+                                print("View failed to set url")
+                            }
+                        }
+                    }
+                    
                     Picker("instrument", selection: $observable.instrument) {
                         ForEach(0 ..< 128) { i in
                             Text("\(i) \(generalMidi[i])")
@@ -226,14 +247,18 @@ struct ContentView: View {
                     .pickerStyle(SegmentedPickerStyle())
 
                     if(observable.layout == .grid) {
-                        Stepper("\(observable.gridX) semitones right", value: $observable.gridX)
-                        Stepper("\(observable.gridY) semitones up", value: $observable.gridY)
+                        Stepper("semitones right: \(observable.gridX)", value: $observable.gridX)
+                        Stepper("semitones up: \(observable.gridY)", value: $observable.gridY)
                     }
 
-                    Stepper("\(observable.nCols) columns", value: $observable.nCols, in: 1...24)
-                    Stepper("\(observable.nRows) rows", value: $observable.nRows, in: 1...24)
+                    Stepper(value: $observable.nCols, in: 1...24) {
+                        Text("columns: \(observable.nCols)")
+                    }
+                    Stepper(value: $observable.nRows, in: 1...24) {
+                        Text("rows: \(observable.nRows)")
+                    }
 
-                    Stepper("lowest note \(observable.numberLowest)", value: $observable.numberLowest)
+                    Stepper("lowest note: \(observable.numberLowest)", value: $observable.numberLowest)
 
                     Toggle("traditional", isOn: $observable.isTraditional)
                 } header: {

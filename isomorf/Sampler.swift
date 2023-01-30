@@ -28,9 +28,12 @@ enum Play: Hashable {
 struct Sampler {
     private var engine = AVAudioEngine()
     private var unitSampler = AVAudioUnitSampler()
+    var url: URL? = nil
     
     private let maxPitchBend: Int = 16384
     private let maxNoteBend: Int = 4
+    
+    private var instrument: UInt8 = 0
     
     var played: [Note: (Play, Channel, Float)] = [:]
     
@@ -46,8 +49,6 @@ struct Sampler {
         engine.attach(unitSampler)
         engine.connect(unitSampler, to: engine.mainMixerNode, format: nil)
         
-        loadInstrument(0)
-        
         do {
             try engine.start()
         } catch {
@@ -61,18 +62,24 @@ struct Sampler {
     }
     
     mutating func play(_ touchHash: Int, _ note: Note, _ diff: Float) {
-        if let (_, channel, diff) = played[note] {
-            unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
-            played[note] = (.touch(touchHash), channel, diff)
-            
-        } else if let channel = (0..<128).first(where: { !played.keys.contains($0) }) {
-            unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
-            unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
-            played[note] = (.touch(touchHash), channel, diff)
-            
-        } else {
-            print("Sampler failed to play note \(note)")
-        }
+            if isPercussive {
+                let channel: UInt8 = 10
+                unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
+                played[note] = (.touch(touchHash), channel, diff)
+            } else {
+                if let (_, channel, diff) = played[note] {
+                    unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
+                    played[note] = (.touch(touchHash), channel, diff)
+                    
+                } else if let channel = (0..<128).first(where: { !played.keys.contains($0) }) {
+                    unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
+                    unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
+                    played[note] = (.touch(touchHash), channel, diff)
+                    
+                } else {
+                    print("Sampler failed to play note \(note)")
+                }
+            }
     }
     
     mutating func unplay(_ touchHash: Int) {
@@ -121,13 +128,28 @@ struct Sampler {
         }
     }
     
-    func loadInstrument(_ instrument: UInt8) {
-        if let url = Bundle.main.url(forResource: "SGM-V2.01", withExtension: "sf2"),
-           let _ = try? unitSampler.loadSoundBankInstrument(
+    var isPercussive: Bool {
+        return 112 <= instrument && instrument < 120
+    }
+
+    mutating func loadInstrument() {
+        loadInstrument(instrument)
+    }
+    
+    mutating func loadInstrument(_ instrumentNu: UInt8) {
+        instrument = instrumentNu
+        
+        if let url = url {
+            _ = url.startAccessingSecurityScopedResource()
+
+            let _ = try? unitSampler.loadSoundBankInstrument(
             at: url, program: instrument,
-            bankMSB: UInt8(kAUSampler_DefaultMelodicBankMSB),
+            bankMSB: UInt8(
+                isPercussive ? kAUSampler_DefaultPercussionBankMSB : kAUSampler_DefaultMelodicBankMSB
+            ),
             bankLSB: UInt8(kAUSampler_DefaultBankLSB))
-        {
+
+            url.stopAccessingSecurityScopedResource()
             print("instrument \(instrument) loaded")
         } else {
             print("Sampler failed to load instrument")

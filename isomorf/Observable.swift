@@ -9,6 +9,8 @@ import SwiftUI
 
 class Observable: ObservableObject {
     @Published var timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
+
+    @Published var file: String? = nil
     
     @Published var layout = Layout.janko
 
@@ -100,14 +102,12 @@ class Observable: ObservableObject {
                 gridX = 1
                 gridY = 4
                 nRows = 7
-                numberLowest -= 12
                 numberLowest = 60 - gridY * nRows / 2
             case .linn:
                 layout = .grid
                 gridX = 1
                 gridY = 5
                 nRows = 7
-                numberLowest -= 12
                 numberLowest = 60 - gridY * nRows / 2
             case .linn6:
                 layout = .grid
