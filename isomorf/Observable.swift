@@ -9,11 +9,11 @@ import SwiftUI
 
 class Observable: ObservableObject {
     @Published var timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
-
+    
     @Published var file: String? = nil
     
     @Published var layout = Layout.janko
-
+    
     @Published var isTraditional = false
     
     @Published var sampler = Sampler()
@@ -87,7 +87,7 @@ class Observable: ObservableObject {
     @Published var config = Config.janko {
         didSet {
             reset()
-
+            
             switch config {
             case .janko:
                 layout = .janko

@@ -132,26 +132,31 @@ struct ContentView: View {
         })
         
         let patterns = [
+            ("min", "m", [0, 3]),
+            ("maj", "M", [0, 4]),
+            
             ("dim", "dim", [0, 3, 6]),
-            ("dim9", "dim7", [0, 3, 6, 9]),
-            ("min6!", "m7-5", [0, 3, 6, 10]),
-
             ("min", "m", [0, 3, 7]),
-            ("min10", "m7", [0, 3, 7, 10]),
-            ("min11", "mM7", [0, 3, 7, 11]),
-
             ("maj", "", [0, 4, 7]),
-            ("maj6!,10", "7-5", [0, 4, 6, 10]),
-            ("maj10", "7", [0, 4, 7, 10]),
-            ("maj11", "M7", [0, 4, 7, 11]),
-            ("maj10,13", "-9", [0, 4, 7, 10, 1]),
-            ("maj10,14", "9", [0, 4, 7, 10, 2]),
-
             ("aug", "aug", [0, 4, 8]),
-            ("aug11", "M7+5", [0, 4, 8, 11]),
-
+            
+            ("min3", "m7", [0, 3, 7, 10]),
+            ("min4", "mM7", [0, 3, 7, 11]),
+            ("maj3", "7", [0, 4, 7, 10]),
+            ("maj4", "M7", [0, 4, 7, 11]),
+            
+            ("dim3", "dim7", [0, 3, 6, 9]),
+            ("dim4", "m7-5", [0, 3, 6, 10]),
+            ("maj3-6", "7-5", [0, 4, 6, 10]),
+            ("aug3", "M7+5", [0, 4, 8, 11]),
+            
+            ("min3,3", "m-9", [0, 3, 7, 10, 1]),
+            ("min3,4", "m9", [0, 3, 7, 10, 2]),
+            ("maj3,3", "-9", [0, 4, 7, 10, 1]),
+            ("maj3,4", "9", [0, 4, 7, 10, 2]),
+            
             ("sus", "sus4", [0, 5, 7]),
-            ("sus10", "7sus4", [0, 5, 7, 10])
+            ("sus3", "7sus4", [0, 5, 7, 10])
         ]
         
         for (name, nameTraditional, pattern) in patterns {
@@ -184,7 +189,7 @@ struct ContentView: View {
                     
                     Text(chord(touched))
                         .frame(minHeight: 32)
-
+                    
                     ZStack {
                         KeyboardView(observable: observable, geometry: geometry)
                         TouchRepresentable(observable: observable)
@@ -245,21 +250,21 @@ struct ContentView: View {
                         Text("grid").tag(Layout.grid)
                     }
                     .pickerStyle(SegmentedPickerStyle())
-
+                    
                     if(observable.layout == .grid) {
                         Stepper("semitones right: \(observable.gridX)", value: $observable.gridX)
                         Stepper("semitones up: \(observable.gridY)", value: $observable.gridY)
                     }
-
+                    
                     Stepper(value: $observable.nCols, in: 1...24) {
                         Text("columns: \(observable.nCols)")
                     }
                     Stepper(value: $observable.nRows, in: 1...24) {
                         Text("rows: \(observable.nRows)")
                     }
-
+                    
                     Stepper("lowest number: \(observable.numberLowest)", value: $observable.numberLowest)
-
+                    
                     Toggle("traditional", isOn: $observable.isTraditional)
                 } header: {
                     Text("layout")

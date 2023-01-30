@@ -28,7 +28,7 @@ enum Play: Hashable {
 struct Sampler {
     private var engine = AudioEngine()
     private var sampler = MIDISampler()
-
+    
     var url: URL? = nil
     
     private let maxPitchBend: Int = 16384
@@ -117,7 +117,7 @@ struct Sampler {
     var isPercussive: Bool {
         return 112 <= instrument && instrument < 120
     }
-
+    
     mutating func loadInstrument() {
         loadInstrument(instrument)
     }
@@ -127,10 +127,9 @@ struct Sampler {
         
         if let url = url {
             _ = url.startAccessingSecurityScopedResource()
-
             try! sampler.loadMelodicSoundFont(url: url, preset: instrument)
-
             url.stopAccessingSecurityScopedResource()
+            
             print("instrument \(instrument) loaded")
         } else {
             print("Sampler failed to load instrument")

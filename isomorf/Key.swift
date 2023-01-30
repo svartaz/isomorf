@@ -31,7 +31,7 @@ struct Key: View {
     
     var name: String {
         let standardOctave = 5
-
+        
         if(observable.isTraditional) {
             return "\(["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][klass])\(octave - standardOctave + 4)"
         } else {
@@ -78,21 +78,21 @@ struct Key: View {
                             }
                         }
                     }
-
+                    
                     return 0
                 }
             }()
             
             let diff: Float =
             observable.sampler.played.compactMap { (n: Number, value) in
-                    let (_, _, diff) = value
-                    if(number == n) {
-                        return diff
-                    } else {
-                        return nil
-                    }
+                let (_, _, diff) = value
+                if(number == n) {
+                    return diff
+                } else {
+                    return nil
                 }
-                .max() ?? Float(0)
+            }
+            .max() ?? Float(0)
             
             RoundedRectangle(cornerRadius: radius)
                 .fill(colorActive)
