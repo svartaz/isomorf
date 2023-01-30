@@ -58,24 +58,35 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         } else {
             let iF = (height - y) / height * Float(observable.nRows) - 0.5
             let i = Int(round(iF))
+
+            let numberHalfKey = Float(observable.gridX) / 2
+            let numberMinMin = Float(observable.numberLowest) - numberHalfKey
+            let numberWidth = Float(observable.gridX * observable.nCols)
             
             switch observable.layout {
             case .janko:
                 let isUpper: Bool = i % 2 == 1
                 let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
                 
-                let numberMin = Float(observable.numberLowest - 1)
-                let numberMax = numberMin + Float(observable.nCols * 2)
-                let numberF = x / (width - widthKey) * (numberMax - numberMin) + numberMin - 2
+                let numberF = (x - widthKey) / (width - widthKey) * numberWidth + numberMinMin
                 let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
                 
                 return .key(number, numberF - Float(number))
-            case .grid:
-                let jF = (x - widthKey) / (width - widthKey) * Float(observable.nCols) - 0.5
-                let j = Int(round(jF))
+            case .hexagon:
+                let numberMin: Float = numberMinMin + (Float(observable.gridY) - numberHalfKey) * Float(i)
+                let numberF: Float = (x - widthKey) / (width - widthKey) * numberWidth + numberMin
+
+                // FIXME
+                let number = round(numberF)
                 
-                let number: Number = observable.gridNumber(i, j)
-                return .key(number, (jF - Float(j)) * observable.diffPerKey / 2)
+                return .key(Int(number), numberF - number)
+            case .grid:
+                // FIXME
+                let jF = (x - widthKey) / (width - widthKey) * Float(observable.nCols) - 0.5
+                let j = Int(round(jF, step: Float(observable.gridX), from: Float(0)))
+                
+                let number: Number = observable.number(i, j)
+                return .key(number, (jF - Float(j)) * Float(observable.gridX) / 2)
             }
         }
     }

@@ -98,7 +98,7 @@ struct Key: View {
                 .fill(colorActive)
                 .frame(maxWidth: .infinity)
                 .opacity(opacity)
-                .saturation(1 - abs(Double(diff / observable.diffPerKey / 2)))
+                .saturation(1 - abs(Double(diff * 2.0 / Float(observable.gridX))))
                 .onReceive(observable.timer, perform: { _ in
                     now = Date()
                 })

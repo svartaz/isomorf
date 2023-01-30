@@ -13,12 +13,16 @@ extension Float {
     
 }
 
+func round(_ x: Float, step: Float, from: Float) -> Float {
+    return round((x + from) / step) * step - from
+}
+
 func roundEven(_ x: Float) -> Float {
-    return round(x / 2) * 2
+    return round(x, step: 2, from: 0)
 }
 
 func roundOdd(_ x: Float) -> Float {
-    return round((x + 1) / 2) * 2 - 1
+    return round(x, step: 2, from: 1)
 }
 
 func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Bool {
@@ -34,17 +38,62 @@ extension Date {
 enum Layout {
     case janko
     case grid
+    case hexagon
 }
 
 enum Config: String, CaseIterable, Identifiable {
     case janko = "janko"
-    case linn4 = "linn (1, 4)"
-    case linn = "linn"
-    case linn6 = "linn (1, 6)"
+    case linn4 = "linnstrument 4"
+    case linn = "linnstrument"
+    case linn6 = "linnstrument 6"
     case dodeka = "dodeka"
     case harpejji = "harpejji"
+    case wicki = "wicki-haiden"
     
     var id: String { rawValue }
+}
+
+struct KeyboardMainView: View {
+    @ObservedObject var observable: Observable
+    @State var now = Date()
+    @State var geometry: GeometryProxy
+    
+    var body: some View {
+        let widthHalf: CGFloat = geometry.size.width / CGFloat(observable.nCols) / CGFloat(2)
+        
+        VStack(spacing: 1) {
+            ForEach((0..<observable.nRows).reversed(), id: \.self) { i in
+                HStack(spacing: 1) {
+                    switch observable.layout {
+                    case .hexagon, .janko:
+                        if(i % 2 == 0) {
+                            ForEach(0..<observable.nCols, id: \.self) { j in
+                                Key(observable: observable,
+                                    now: $now, isHalf: false, number: observable.number(i, j))
+                            }
+                        } else {
+                            Key(observable: observable, now: $now, isHalf: true, number: observable.number(i, -1))
+                                .frame(width: widthHalf)
+                            
+                            let jMax: Int = observable.nCols - 1
+                            ForEach(0..<jMax, id: \.self) { j in
+                                Key(observable: observable,
+                                    now: $now, isHalf: false, number: observable.number(i, j))
+                            }
+                            
+                            Key(observable: observable, now: $now, isHalf: true, number: observable.number(i, jMax))
+                                .frame(width: widthHalf)
+                        }
+                    case .grid:
+                        ForEach(0..<observable.nCols, id: \.self) { j in
+                            Key(observable: observable,
+                                now: $now, isHalf: false, number: observable.number(i, j))
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 struct KeyboardView: View {
@@ -82,41 +131,7 @@ struct KeyboardView: View {
             }
             
             GeometryReader { geometryKeyboard in
-                ZStack {
-                    VStack(spacing: 1) {
-                        ForEach((0..<observable.nRows).reversed(), id: \.self) { i in
-                            HStack(spacing: 1) {
-                                switch observable.layout {
-                                case .janko:
-                                    if(i % 2 == 0) {
-                                        ForEach(0..<observable.nCols, id: \.self) { j in
-                                            Key(observable: observable,
-                                                now: $now, isHalf: false, number: observable.numberLowest + j * 2 )
-                                        }
-                                    } else {
-                                        Key(observable: observable,
-                                            now: $now, isHalf: true, number: observable.numberLowest - 1)
-                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNumbers))
-                                        
-                                        ForEach(0..<(observable.nCols - 1), id: \.self) { j in
-                                            Key(observable: observable,
-                                                now: $now, isHalf: false, number: observable.numberLowest + j * 2 + 1)
-                                        }
-                                        
-                                        Key(observable: observable,
-                                            now: $now, isHalf: true, number: observable.numberLowest + observable.nCols * 2 - 1)
-                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNumbers))
-                                    }
-                                case .grid:
-                                    ForEach(0..<observable.nCols, id: \.self) { j in
-                                        Key(observable: observable,
-                                            now: $now, isHalf: false, number: observable.gridNumber(i, j))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                KeyboardMainView(observable: observable, geometry: geometryKeyboard)
             }
         }
     }
@@ -149,6 +164,11 @@ struct ContentView: View {
             ("dim4", "m7-5", [0, 3, 6, 10]),
             ("maj3-6", "7-5", [0, 4, 6, 10]),
             ("aug3", "M7+5", [0, 4, 8, 11]),
+
+            ("min3,3", "m-9", [0, 3, 10, 1]),
+            ("min3,4", "m9", [0, 3, 10, 2]),
+            ("maj3,3", "-9", [0, 4, 10, 1]),
+            ("maj3,4", "9", [0, 4, 10, 2]),
             
             ("min3,3", "m-9", [0, 3, 7, 10, 1]),
             ("min3,4", "m9", [0, 3, 7, 10, 2]),
@@ -222,14 +242,16 @@ struct ContentView: View {
                         }
                     }
                     
-                    Picker("instrument", selection: $observable.instrument) {
-                        ForEach(0 ..< 128) { i in
-                            Text("\(i) \(generalMidi[i])")
-                                .tag(UInt8.init(i))
-                                .lineLimit(1, reservesSpace: true)
+                    if(observable.sampler.url != nil) {
+                        Picker("instrument", selection: $observable.instrument) {
+                            ForEach(0 ..< 128) { i in
+                                Text("\(i) \(generalMidi[i])")
+                                    .tag(UInt8.init(i))
+                                    .lineLimit(1, reservesSpace: true)
+                            }
                         }
+                        .pickerStyle(MenuPickerStyle())
                     }
-                    .pickerStyle(MenuPickerStyle())
                     
                     Toggle("always sustain", isOn: $observable.sustainsAlways)
                     Toggle("always bend", isOn: $observable.bendsAlways)
@@ -247,11 +269,12 @@ struct ContentView: View {
                     
                     Picker("layout", selection: $observable.layout) {
                         Text("janko").tag(Layout.janko)
+                        Text("hexagon").tag(Layout.hexagon)
                         Text("grid").tag(Layout.grid)
                     }
                     .pickerStyle(SegmentedPickerStyle())
                     
-                    if(observable.layout == .grid) {
+                    if(observable.layout != .janko) {
                         Stepper("semitones right: \(observable.gridX)", value: $observable.gridX)
                         Stepper("semitones up: \(observable.gridY)", value: $observable.gridY)
                     }

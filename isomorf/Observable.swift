@@ -62,21 +62,8 @@ class Observable: ObservableObject {
         }
     }
     
-    @Published var gridX: Int = 1
-    @Published var gridY: Int = 5
-    
-    var diffPerKey: Float {
-        switch layout {
-        case .janko:
-            return 2
-        case .grid:
-            return Float(gridX)
-        }
-    }
-    
-    func gridNumber(_ i: Int, _ j: Int) -> Number {
-        return numberLowest + i * gridY + j * gridX
-    }
+    @Published var gridX: Int = 2
+    @Published var gridY: Int = 1
     
     func reset() {
         nRows = 4
@@ -91,6 +78,8 @@ class Observable: ObservableObject {
             switch config {
             case .janko:
                 layout = .janko
+                gridX = 2
+                gridY = 1
             case .dodeka:
                 layout = .grid
                 gridX = 1
@@ -102,27 +91,45 @@ class Observable: ObservableObject {
                 gridX = 1
                 gridY = 4
                 nRows = 7
-                numberLowest = 60 - gridY * nRows / 2
+                numberLowest = 60 - gridY * (nRows / 2)
             case .linn:
                 layout = .grid
                 gridX = 1
                 gridY = 5
                 nRows = 7
-                numberLowest = 60 - gridY * nRows / 2
+                numberLowest = 60 - gridY * (nRows / 2)
             case .linn6:
                 layout = .grid
                 gridX = 1
                 gridY = 6
                 nRows = 7
-                numberLowest = 60 - gridY * nRows / 2
+                numberLowest = 60 - gridY * (nRows / 2)
             case .harpejji:
                 layout = .grid
                 gridX = 5
                 gridY = 1
                 nRows = 12
                 nCols = 8
-                numberLowest = 60 - gridY * nRows / 2
+                numberLowest = 60 - gridY * (nRows / 2)
+            case .wicki:
+                layout = .hexagon
+                gridX = 2
+                gridY = 7
+                nRows = 4
+                nCols = 12
+                numberLowest = 60 - gridX * (nCols / 2 - 1)
             }
+        }
+    }
+    
+    func number(_ i: Int, _ j: Int) -> Number {
+        switch layout {
+        case .janko:
+            return numberLowest + j * gridX + (i % 2) * gridY
+        case .hexagon:
+            return numberLowest + (j - i / 2) * gridX + i * gridY
+        case .grid:
+            return numberLowest + i * gridY + j * gridX
         }
     }
 }
