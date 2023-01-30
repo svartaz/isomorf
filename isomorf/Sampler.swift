@@ -6,9 +6,9 @@
 //
 
 import AVFoundation
+import AudioKit
 
 typealias Channel = UInt8
-typealias Note = UInt8
 typealias Number = Int
 
 enum Play: Hashable {
@@ -26,34 +26,22 @@ enum Play: Hashable {
 }
 
 struct Sampler {
-    private var engine = AVAudioEngine()
-    private var unitSampler = AVAudioUnitSampler()
+    private var engine = AudioEngine()
+    private var sampler = MIDISampler()
+
     var url: URL? = nil
     
     private let maxPitchBend: Int = 16384
     private let maxNoteBend: Int = 4
     
-    private var instrument: UInt8 = 0
+    private var instrument: Int = 0
     
-    var played: [Note: (Play, Channel, Float)] = [:]
-    
-    static func toNote(_ number: Number) -> Note {
-        return UInt8.init(number - 2)
-    }
-    
-    static func toNumber(_ note: Note) -> Number {
-        return Int(note + 2)
-    }
+    var played: [Number: (Play, Channel, Float)] = [:]
     
     init() {
-        engine.attach(unitSampler)
-        engine.connect(unitSampler, to: engine.mainMixerNode, format: nil)
-        
-        do {
-            try engine.start()
-        } catch {
-            fatalError("Sampler falied to start engin")
-        }
+        engine.output = sampler
+        try! engine.start()
+        sampler.enableMIDI()
     }
     
     func pitchBend(_ diff: Float) -> UInt16 {
@@ -61,58 +49,56 @@ struct Sampler {
         return UInt16.init(Int(pitchBendF))
     }
     
-    mutating func play(_ touchHash: Int, _ note: Note, _ diff: Float) {
-            if isPercussive {
-                let channel: UInt8 = 10
-                unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
-                played[note] = (.touch(touchHash), channel, diff)
-            } else {
-                if let (_, channel, diff) = played[note] {
-                    unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
-                    played[note] = (.touch(touchHash), channel, diff)
-                    
-                } else if let channel = (0..<128).first(where: { !played.keys.contains($0) }) {
-                    unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
-                    unitSampler.startNote(note, withVelocity: 127, onChannel: channel)
-                    played[note] = (.touch(touchHash), channel, diff)
-                    
-                } else {
-                    print("Sampler failed to play note \(note)")
-                }
-            }
+    var channelsUsed: [Channel] {
+        played.values.map { (_, channelOld, _) in
+            return channelOld
+        }
+    }
+    
+    mutating func play(_ touchHash: Int, _ number: Number, _ diff: Float) {
+        if let (_, channel, diff) = played[number] {
+            sampler.play(noteNumber: UInt8.init(number), velocity: 127, channel: MIDIChannel(channel))
+            played[number] = (.touch(touchHash), channel, diff)
+        } else if let channel: Channel = (0..<128).first(where: { !channelsUsed.contains($0)}) {
+            sampler.play(noteNumber: UInt8.init(number), velocity: 127, channel: MIDIChannel(channel))
+            played[number] = (.touch(touchHash), channel, diff)
+            
+        } else {
+            print("Sampler failed to play note \(number)")
+        }
     }
     
     mutating func unplay(_ touchHash: Int) {
-        played.forEach { (note: Note, value) in
+        played.forEach { (number: Number, value) in
             if case let (.touch(th), channel, _) = value {
                 if(th == touchHash) {
-                    unitSampler.stopNote(note, onChannel: channel)
-                    played.removeValue(forKey: note)
+                    sampler.stop(noteNumber: UInt8.init(number), channel: channel)
+                    played.removeValue(forKey: number)
                 }
             }
         }
     }
     
-    mutating func bend(_ note: Note, _ diff: Float) {
-        played.forEach { (n: Note, value) in
+    mutating func bend(_ number: Number, _ diff: Float) {
+        played.forEach { (n: Number, value) in
             let (p, channel, _) = value
-            if(n == note) {
-                unitSampler.sendPitchBend(pitchBend(diff), onChannel: channel)
+            if(n == number) {
+                sampler.setPitchbend(amount: pitchBend(diff), channel: channel)
                 played[n] = (p, channel, diff)
             }
         }
     }
     
     mutating func unbend() {
-        played.forEach { (n: Note, value) in
+        played.forEach { (n: Number, value) in
             let (p, channel, _) = value
-            unitSampler.sendPitchBend(pitchBend(0), onChannel: channel)
+            sampler.setPitchbend(amount: pitchBend(0), channel: channel)
             played[n] = (p, channel, 0)
         }
     }
     
     mutating func sustain(_ touchHash: Int) {
-        played.forEach { (note: Note, value) in
+        played.forEach { (note: Number, value) in
             if case let (.touch(_), channel, diff) = value {
                 played[note] = (.sustain(Date()), channel, diff)
             }
@@ -120,10 +106,10 @@ struct Sampler {
     }
     
     mutating func unsustain() {
-        played.forEach { (note: Note, value) in
+        played.forEach { (number: Number, value) in
             if case let (.sustain(_), channel, _) = value {
-                unitSampler.stopNote(note, onChannel: channel)
-                played.removeValue(forKey: note)
+                sampler.stop(noteNumber: UInt8.init(number), channel: channel)
+                played.removeValue(forKey: number)
             }
         }
     }
@@ -136,18 +122,13 @@ struct Sampler {
         loadInstrument(instrument)
     }
     
-    mutating func loadInstrument(_ instrumentNu: UInt8) {
-        instrument = instrumentNu
+    mutating func loadInstrument(_ instrument: Int) {
+        self.instrument = instrument
         
         if let url = url {
             _ = url.startAccessingSecurityScopedResource()
 
-            let _ = try? unitSampler.loadSoundBankInstrument(
-            at: url, program: instrument,
-            bankMSB: UInt8(
-                isPercussive ? kAUSampler_DefaultPercussionBankMSB : kAUSampler_DefaultMelodicBankMSB
-            ),
-            bankLSB: UInt8(kAUSampler_DefaultBankLSB))
+            try! sampler.loadMelodicSoundFont(url: url, preset: instrument)
 
             url.stopAccessingSecurityScopedResource()
             print("instrument \(instrument) loaded")

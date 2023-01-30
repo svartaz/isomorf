@@ -55,7 +55,7 @@ struct KeyboardView: View {
     
     var body: some View {
         HStack(spacing: 1) {
-            let nNotes = observable.nCols * 2 + 1
+            let nNumbers = observable.nCols * 2 + 1
             
             VStack(spacing: 1) {
                 ZStack {
@@ -64,7 +64,7 @@ struct KeyboardView: View {
                     Text("bend")
                         .foregroundColor(color0)
                 }
-                .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
+                .frame(width: geometry.size.width / CGFloat(nNumbers + 2) * 2)
                 
                 ZStack {
                     RoundedRectangle(cornerRadius: radius)
@@ -78,7 +78,7 @@ struct KeyboardView: View {
                     Text("sustain")
                         .foregroundColor(color1)
                 }
-                .frame(width: geometry.size.width / CGFloat(nNotes + 2) * 2)
+                .frame(width: geometry.size.width / CGFloat(nNumbers + 2) * 2)
             }
             
             GeometryReader { geometryKeyboard in
@@ -96,7 +96,7 @@ struct KeyboardView: View {
                                     } else {
                                         Key(observable: observable,
                                             now: $now, isHalf: true, number: observable.numberLowest - 1)
-                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNumbers))
                                         
                                         ForEach(0..<(observable.nCols - 1), id: \.self) { j in
                                             Key(observable: observable,
@@ -105,7 +105,7 @@ struct KeyboardView: View {
                                         
                                         Key(observable: observable,
                                             now: $now, isHalf: true, number: observable.numberLowest + observable.nCols * 2 - 1)
-                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNotes))
+                                        .frame(width: geometryKeyboard.size.width / CGFloat(nNumbers))
                                     }
                                 case .grid:
                                     ForEach(0..<observable.nCols, id: \.self) { j in
@@ -174,10 +174,10 @@ struct ContentView: View {
             GeometryReader { geometry in
                 VStack(spacing: 0) {
                     let touched: [Number] = observable.sampler.played
-                        .compactMap { (note, value) in
+                        .compactMap { (number, value) in
                             let (p, _, _) = value
                             if case .touch(_) = p {
-                                return Sampler.toNumber(note)
+                                return number
                             }
                             return nil
                         }
@@ -258,7 +258,7 @@ struct ContentView: View {
                         Text("rows: \(observable.nRows)")
                     }
 
-                    Stepper("lowest note: \(observable.numberLowest)", value: $observable.numberLowest)
+                    Stepper("lowest number: \(observable.numberLowest)", value: $observable.numberLowest)
 
                     Toggle("traditional", isOn: $observable.isTraditional)
                 } header: {

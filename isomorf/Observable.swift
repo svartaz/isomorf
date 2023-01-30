@@ -56,7 +56,7 @@ class Observable: ObservableObject {
     @Published var nRows: Int = 4
     @Published var nCols: Int = 12
     @Published var numberLowest: Int = 57
-    @Published var instrument: UInt8 = 0 {
+    @Published var instrument: Int = 0 {
         didSet {
             sampler.loadInstrument(instrument)
         }

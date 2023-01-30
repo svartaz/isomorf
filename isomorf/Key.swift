@@ -58,9 +58,9 @@ struct Key: View {
             
             let opacity: Double = {
                 
-                let dates = observable.sampler.played.compactMap { (note: Note, value) in
+                let dates = observable.sampler.played.compactMap { (n: Number, value) in
                     if case let (.sustain(date), _, _) = value {
-                        if(note == Sampler.toNote(number)) {
+                        if(number == n) {
                             return date
                         }
                     }
@@ -71,9 +71,9 @@ struct Key: View {
                     let minOpacity = 0.4
                     return (1.0 - min(1, now - date)) * (1 - minOpacity) + minOpacity
                 } else {
-                    for (note, value) in observable.sampler.played {
+                    for (n, value) in observable.sampler.played {
                         if case (.touch(_), _, _) = value {
-                            if(note == Sampler.toNote(number)) {
+                            if(number == n) {
                                 return 1
                             }
                         }
@@ -84,9 +84,9 @@ struct Key: View {
             }()
             
             let diff: Float =
-            observable.sampler.played.compactMap { (note: Note, value) in
+            observable.sampler.played.compactMap { (n: Number, value) in
                     let (_, _, diff) = value
-                    if(note == Sampler.toNote(number)) {
+                    if(number == n) {
                         return diff
                     } else {
                         return nil

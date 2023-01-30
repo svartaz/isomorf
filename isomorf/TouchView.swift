@@ -159,7 +159,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     }
     
     func play(_ touchHash: Int, _ number: Number, _ diff: Float) {
-        observable.sampler.play(touchHash, Sampler.toNote(number), observable.bends ? diff : 0)
+        observable.sampler.play(touchHash, number, observable.bends ? diff : 0)
     }
     
     func release(_ touchHash: Int) {
@@ -172,7 +172,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     
     func bend(_ number: Number, _ diff: Float) {
         if(observable.bends) {
-            observable.sampler.bend(Sampler.toNote(number), diff)
+            observable.sampler.bend(number, diff)
         }
     }
     
