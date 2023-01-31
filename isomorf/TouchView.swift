@@ -57,18 +57,20 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         } else {
             let iF = (height - y) / height * Float(observable.nRows) - 0.5
             let i = Int(round(iF))
+            let numberMin: Float = {
+                switch observable.align {
+                case .rect:
+                    return Float(observable.numberLowest) - Float(observable.gridX) / 2 + Float(i * observable.gridY)
+                case .hex:
+                    return Float(observable.numberLowest) - Float(observable.gridX) / 2 + Float(i) * (Float(observable.gridY) - Float(observable.gridX) / 2)
 
+                }
+            }()
             
             let numberWidth = Float(observable.gridX * observable.nCols)
-            let numberMin = Float(observable.numberLowest) - Float(observable.gridX) / 2
-
+            
             let numberF = (x - widthKey) / (width - widthKey) * numberWidth + numberMin
-            
-            let isUpper: Bool = i % 2 == 1
-            let isEven: Bool = isUpper != observable.numberLowest.isMultiple(of: 2)
-            
-            let number: Number = Int(isEven ? roundEven(numberF) : roundOdd(numberF))
-
+            let number: Number = Int(observable.roundNumber(i, numberF))
             return .key(number, numberF)
         }
     }
@@ -117,7 +119,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
     
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         let touchStatesOld = touchStates
-
+        
         touches.forEach { touch in
             touchStates[touch.hash] = touchState(touch)
         }
@@ -127,7 +129,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
         touches.forEach { touch in
             let touchStateOld = touchStatesOld[touch.hash]!
             let touchState = touchStates[touch.hash]!
-
+            
             switch touchStateOld {
             case let .key(numberOld, _):
                 switch touchState {
@@ -151,7 +153,7 @@ class TouchView: UIView, UIGestureRecognizerDelegate {
             }
         }
     }
-
+    
     func touchesEndedOrCancelled(_ touches: Set<UITouch>) {
         touches.forEach { touch in
             switch touchStates[touch.hash]! {

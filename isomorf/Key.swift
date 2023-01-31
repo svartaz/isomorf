@@ -48,8 +48,8 @@ struct Key: View {
     }
     
     var body: some View {
-        let colorFore: Color = isBlack ? color0 : color1
-        let colorBack: Color = isBlack ? color1 : color0
+        let colorFore: Color = isBlack && observable.coloursBlack ? color0 : color1
+        let colorBack: Color = isBlack && observable.coloursBlack ? color1 : color0
         
         ZStack(alignment: .center) {
             RoundedRectangle(cornerRadius: radius)
@@ -92,7 +92,7 @@ struct Key: View {
                     return nil
                 }
             }
-            .max() ?? Float(0)
+                .max() ?? Float(0)
             
             RoundedRectangle(cornerRadius: radius)
                 .fill(colorActive)

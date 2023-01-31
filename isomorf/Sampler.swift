@@ -32,7 +32,7 @@ struct Sampler {
     var url: URL? = nil
     
     // +- 2 octaves
-    private let maxNumberBend: Int = 24
+    private let maxNumberBend: Int = 48
     
     private var instrument: Int = 0
     
@@ -47,11 +47,11 @@ struct Sampler {
     
     func pitchBend(_ diff: Float) -> UInt16 {
         let maxPitchBend: Int = 16384
-
+        
         let pitchBendF: Float = Float(maxPitchBend) / Float(maxNumberBend * 2) * diff + Float(maxPitchBend) / 2
         return UInt16.init(Int(pitchBendF))
     }
-        
+    
     mutating func play(_ touchHash: Int, _ number: Number, _ diff: Float) {
         played.forEach { (p: Play, v) in
             let (n, channel, _) = v
@@ -95,7 +95,7 @@ struct Sampler {
             sampler.midiCC(6, value: UInt8.init(maxNumberBend), channel: channel)
             sampler.midiCC(100, value: 127, channel: channel)
             sampler.midiCC(101, value: 127, channel: channel)
-
+            
             let diff = numberF - Float(number)
             sampler.setPitchbend(amount: pitchBend(diff), channel: channel)
             played[p] = (number, channel, diff)

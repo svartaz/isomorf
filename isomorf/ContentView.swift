@@ -13,18 +13,6 @@ extension Float {
     
 }
 
-func round(_ x: Float, step: Float, from: Float) -> Float {
-    return round((x + from) / step) * step - from
-}
-
-func roundEven(_ x: Float) -> Float {
-    return round(x, step: 2, from: 0)
-}
-
-func roundOdd(_ x: Float) -> Float {
-    return round(x, step: 2, from: 1)
-}
-
 func between(_ x: Float, min: Float = -.infinity, max: Float = .infinity) -> Bool {
     return min <= x && x < max
 }
@@ -33,6 +21,24 @@ extension Date {
     static func - (a: Date, b: Date) -> TimeInterval {
         return a.timeIntervalSinceReferenceDate - b.timeIntervalSinceReferenceDate
     }
+}
+
+enum Layout: String, CaseIterable, Identifiable {
+    case janko = "janko"
+    case wicki = "wicki-hayden"
+    case harmonic = "harmonic"
+    case linn = "linnstrument"
+    case harpejji = "harpejji"
+    case dodeka = "dodeka"
+
+    var id: String { rawValue }
+}
+
+enum Align: String, CaseIterable, Identifiable {
+    case rect = "rectangle"
+    case hex = "hexagon"
+    
+    var id: String { rawValue }
 }
 
 struct KeyboardMainView: View {
@@ -46,7 +52,7 @@ struct KeyboardMainView: View {
         VStack(spacing: 1) {
             ForEach((0..<observable.nRows).reversed(), id: \.self) { i in
                 HStack(spacing: 1) {
-                    if(i % 2 == 0) {
+                    if(i % 2 == 0 || observable.align == .rect) {
                         ForEach(0..<observable.nCols, id: \.self) { j in
                             Key(observable: observable,
                                 now: $now, isHalf: false, number: observable.number(i, j))
@@ -138,7 +144,7 @@ struct ContentView: View {
             ("dim4", "m7-5", [0, 3, 6, 10]),
             ("maj3-6", "7-5", [0, 4, 6, 10]),
             ("aug3", "M7+5", [0, 4, 8, 11]),
-
+            
             ("min3,3", "m-9", [0, 3, 10, 1]),
             ("min3,4", "m9", [0, 3, 10, 2]),
             ("maj3,3", "-9", [0, 4, 10, 1]),
@@ -234,6 +240,27 @@ struct ContentView: View {
                 }
                 
                 Section {
+                    Picker("layout", selection: $observable.layout) {
+                        ForEach(Layout.allCases) {
+                            Text($0.rawValue).tag($0)
+                        }
+                    }
+                    .pickerStyle(MenuPickerStyle())
+                    
+                    Picker("align", selection: $observable.align) {
+                        ForEach(Align.allCases) {
+                            Text($0.rawValue).tag($0)
+                        }
+                    }
+                    .pickerStyle(SegmentedPickerStyle())
+                    
+                    Stepper(value: $observable.gridX, in: 1...24) {
+                        Text("pitch to right \(observable.gridX)")
+                    }
+                    Stepper(value: $observable.gridY, in: 1...24) {
+                        Text("pitch to top: \(observable.gridY)")
+                    }
+                    
                     Stepper(value: $observable.nCols, in: 1...24) {
                         Text("columns: \(observable.nCols)")
                     }
@@ -241,12 +268,24 @@ struct ContentView: View {
                         Text("rows: \(observable.nRows)")
                     }
                     
-                    Stepper("lowest number: \(observable.numberLowest)", value: $observable.numberLowest)
-                    
-                    Toggle("traditional", isOn: $observable.isTraditional)
+                    Stepper("lowest note: \( observable.numberLowest)", value: $observable.numberLowest)
                 } header: {
                     Text("layout")
                 }
+                
+                Section {
+                    Toggle("colour black keys", isOn: $observable.coloursBlack)
+                    if(observable.coloursBlack) {
+                        Stepper(value: $observable.root) {
+                            Text("root: \(observable.root)")
+                        }
+                    }
+                    
+                    Toggle("traditional", isOn: $observable.isTraditional)
+                } header: {
+                    Text("appearance")
+                }
+
             }
             .tabItem {
                 Text("preference")

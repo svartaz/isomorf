@@ -12,6 +12,39 @@ class Observable: ObservableObject {
     
     @Published var file: String? = nil
     
+    @Published var align = Align.hex
+    
+    @Published var layout = Layout.janko {
+        didSet {
+            switch layout {
+            case .janko:
+                align = .hex
+                gridX = 2
+                gridY = 1
+            case .wicki:
+                align = .hex
+                gridX = 2
+                gridY = 7
+            case .harmonic:
+                align = .hex
+                gridX = 4
+                gridY = 7
+            case .linn:
+                align = .rect
+                gridX = 1
+                gridY = 5
+            case .harpejji: 
+                align = .rect
+                gridX = 5
+                gridY = 1
+            case .dodeka:
+                align = .rect
+                gridX = 1
+                gridY = 12
+            }
+        }
+    }
+    
     @Published var isTraditional = false
     
     @Published var sampler = Sampler()
@@ -50,10 +83,12 @@ class Observable: ObservableObject {
         bends = bendsAlways || bendsCurrently
     }
     
+    @Published var coloursBlack = true
+    
     @Published var root: Int = 0
-    @Published var nRows: Int = 4
+    @Published var nRows: Int = 7
     @Published var nCols: Int = 12
-    @Published var numberLowest: Int = 57
+    @Published var numberLowest: Int = 60
     @Published var instrument: Int = 0 {
         didSet {
             sampler.loadInstrument(instrument)
@@ -63,13 +98,17 @@ class Observable: ObservableObject {
     @Published var gridX: Int = 2
     @Published var gridY: Int = 1
     
-    func reset() {
-        nRows = 4
-        nCols = 12
-        numberLowest = 57
-    }
-   
     func number(_ i: Int, _ j: Int) -> Number {
-        return numberLowest + j * gridX + (i % 2) * gridY
+        switch align {
+        case .rect:
+            return numberLowest + j * gridX + i * gridY
+        case .hex:
+            return numberLowest + (j - i / 2) * gridX + i * gridY
+        }
+    }
+    
+    func roundNumber(_ i: Int, _ numberF: Float) -> Float {
+        let from = Float(numberLowest + i * gridY)
+        return round((numberF - from) / Float(gridX)) * Float(gridX) + from
     }
 }
