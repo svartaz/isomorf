@@ -57,9 +57,9 @@ struct Key: View {
                 .frame(maxWidth: .infinity)
             
             let opacity: Double = {
-                
-                let dates = observable.sampler.played.compactMap { (n: Number, value) in
-                    if case let (.sustain(date), _, _) = value {
+                let dates = observable.sampler.played.compactMap { (p: Play, v) in
+                    if case let .sustain(date) = p {
+                        let (n, _, _) = v
                         if(number == n) {
                             return date
                         }
@@ -71,8 +71,9 @@ struct Key: View {
                     let minOpacity = 0.4
                     return (1.0 - min(1, now - date)) * (1 - minOpacity) + minOpacity
                 } else {
-                    for (n, value) in observable.sampler.played {
-                        if case (.touch(_), _, _) = value {
+                    for (p, v) in observable.sampler.played {
+                        if case .touch(_) = p {
+                            let (n, _, _) = v
                             if(number == n) {
                                 return 1
                             }
@@ -83,9 +84,8 @@ struct Key: View {
                 }
             }()
             
-            let diff: Float =
-            observable.sampler.played.compactMap { (n: Number, value) in
-                let (_, _, diff) = value
+            let diff: Float = observable.sampler.played.compactMap { (p: Play, v) in
+                let (n, _, diff) = v
                 if(number == n) {
                     return diff
                 } else {

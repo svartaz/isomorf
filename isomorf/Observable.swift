@@ -12,8 +12,6 @@ class Observable: ObservableObject {
     
     @Published var file: String? = nil
     
-    @Published var layout = Layout.janko
-    
     @Published var isTraditional = false
     
     @Published var sampler = Sampler()
@@ -70,66 +68,8 @@ class Observable: ObservableObject {
         nCols = 12
         numberLowest = 57
     }
-    
-    @Published var config = Config.janko {
-        didSet {
-            reset()
-            
-            switch config {
-            case .janko:
-                layout = .janko
-                gridX = 2
-                gridY = 1
-            case .dodeka:
-                layout = .grid
-                gridX = 1
-                nRows = 2
-                nCols = 12
-                gridY = 12
-            case .linn4:
-                layout = .grid
-                gridX = 1
-                gridY = 4
-                nRows = 7
-                numberLowest = 60 - gridY * (nRows / 2)
-            case .linn:
-                layout = .grid
-                gridX = 1
-                gridY = 5
-                nRows = 7
-                numberLowest = 60 - gridY * (nRows / 2)
-            case .linn6:
-                layout = .grid
-                gridX = 1
-                gridY = 6
-                nRows = 7
-                numberLowest = 60 - gridY * (nRows / 2)
-            case .harpejji:
-                layout = .grid
-                gridX = 5
-                gridY = 1
-                nRows = 12
-                nCols = 8
-                numberLowest = 60 - gridY * (nRows / 2)
-            case .wicki:
-                layout = .hexagon
-                gridX = 2
-                gridY = 7
-                nRows = 4
-                nCols = 12
-                numberLowest = 60 - gridX * (nCols / 2 - 1)
-            }
-        }
-    }
-    
+   
     func number(_ i: Int, _ j: Int) -> Number {
-        switch layout {
-        case .janko:
-            return numberLowest + j * gridX + (i % 2) * gridY
-        case .hexagon:
-            return numberLowest + (j - i / 2) * gridX + i * gridY
-        case .grid:
-            return numberLowest + i * gridY + j * gridX
-        }
+        return numberLowest + j * gridX + (i % 2) * gridY
     }
 }

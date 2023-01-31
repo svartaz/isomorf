@@ -31,37 +31,43 @@ struct Sampler {
     
     var url: URL? = nil
     
-    private let maxPitchBend: Int = 16384
-    private let maxNoteBend: Int = 4
+    // +- 2 octaves
+    private let maxNumberBend: Int = 24
     
     private var instrument: Int = 0
     
-    var played: [Number: (Play, Channel, Float)] = [:]
+    var played: [Play: (Number, Channel, Float)] = [:]
     
     init() {
         engine.output = sampler
+        
         try! engine.start()
         sampler.enableMIDI()
     }
     
     func pitchBend(_ diff: Float) -> UInt16 {
-        let pitchBendF: Float = diff * (Float(maxPitchBend) / Float(maxNoteBend)) + Float(maxPitchBend) / 2
+        let maxPitchBend: Int = 16384
+
+        let pitchBendF: Float = Float(maxPitchBend) / Float(maxNumberBend * 2) * diff + Float(maxPitchBend) / 2
         return UInt16.init(Int(pitchBendF))
     }
-    
-    var channelsUsed: [Channel] {
-        played.values.map { (_, channelOld, _) in
-            return channelOld
-        }
-    }
-    
+        
     mutating func play(_ touchHash: Int, _ number: Number, _ diff: Float) {
-        if let (_, channel, diff) = played[number] {
+        played.forEach { (p: Play, v) in
+            let (n, channel, _) = v
+            if case .sustain(_) = p {
+                if(n == number) {
+                    sampler.stop(noteNumber: UInt8.init(n), channel: channel)
+                    played.removeValue(forKey: p)
+                }
+            }
+        }
+        
+        let channelsUsed: [Channel] = played.values.map { (_, c, _) in return c }
+        if let channel: Channel = (0..<128).first(where: { !channelsUsed.contains($0)}) {
+            sampler.setPitchbend(amount: pitchBend(diff), channel: channel)
             sampler.play(noteNumber: UInt8.init(number), velocity: 127, channel: MIDIChannel(channel))
-            played[number] = (.touch(touchHash), channel, diff)
-        } else if let channel: Channel = (0..<128).first(where: { !channelsUsed.contains($0)}) {
-            sampler.play(noteNumber: UInt8.init(number), velocity: 127, channel: MIDIChannel(channel))
-            played[number] = (.touch(touchHash), channel, diff)
+            played[.touch(touchHash)] = (number, channel, diff)
             
         } else {
             print("Sampler failed to play note \(number)")
@@ -69,53 +75,57 @@ struct Sampler {
     }
     
     mutating func unplay(_ touchHash: Int) {
-        played.forEach { (number: Number, value) in
-            if case let (.touch(th), channel, _) = value {
-                if(th == touchHash) {
-                    sampler.stop(noteNumber: UInt8.init(number), channel: channel)
-                    played.removeValue(forKey: number)
-                }
-            }
+        let p = Play.touch(touchHash)
+        
+        if let (number, channel, _) = played[p] {
+            sampler.stop(noteNumber: UInt8.init(number), channel: channel)
+            sampler.setPitchbend(amount: pitchBend(0), channel: channel)
+            played.removeValue(forKey: p)
+        } else {
+            print("Sampler failed to unplay")
         }
     }
     
-    mutating func bend(_ number: Number, _ diff: Float) {
-        played.forEach { (n: Number, value) in
-            let (p, channel, _) = value
-            if(n == number) {
-                sampler.setPitchbend(amount: pitchBend(diff), channel: channel)
-                played[n] = (p, channel, diff)
-            }
+    mutating func bendTo(_ touchHash: Int, _ numberF: Float) {
+        let p = Play.touch(touchHash)
+        
+        if let (number, channel, _) = played[p] {
+            sampler.midiCC(100, value: 0, channel: channel)
+            sampler.midiCC(101, value: 0, channel: channel)
+            sampler.midiCC(6, value: UInt8.init(maxNumberBend), channel: channel)
+            sampler.midiCC(100, value: 127, channel: channel)
+            sampler.midiCC(101, value: 127, channel: channel)
+
+            let diff = numberF - Float(number)
+            sampler.setPitchbend(amount: pitchBend(diff), channel: channel)
+            played[p] = (number, channel, diff)
+        } else {
+            print("Sampler failed to bend")
         }
     }
     
     mutating func unbend() {
-        played.forEach { (n: Number, value) in
-            let (p, channel, _) = value
+        played.forEach { (p: Play, v) in
+            let (number, channel, _) = v
             sampler.setPitchbend(amount: pitchBend(0), channel: channel)
-            played[n] = (p, channel, 0)
+            played[p] = (number, channel, 0)
         }
     }
     
     mutating func sustain(_ touchHash: Int) {
-        played.forEach { (note: Number, value) in
-            if case let (.touch(_), channel, diff) = value {
-                played[note] = (.sustain(Date()), channel, diff)
-            }
-        }
+        let p = Play.touch(touchHash)
+        played[.sustain(Date())] = played[p]
+        played.removeValue(forKey: p)
     }
     
     mutating func unsustain() {
-        played.forEach { (number: Number, value) in
-            if case let (.sustain(_), channel, _) = value {
+        played.forEach { (p: Play, v) in
+            if case .sustain(_) = p {
+                let (number, channel, _) = v
                 sampler.stop(noteNumber: UInt8.init(number), channel: channel)
-                played.removeValue(forKey: number)
+                played.removeValue(forKey: p)
             }
         }
-    }
-    
-    var isPercussive: Bool {
-        return 112 <= instrument && instrument < 120
     }
     
     mutating func loadInstrument() {

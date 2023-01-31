@@ -38,6 +38,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A40E506D298931FF00A2CE3E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A45ABC0B297FE5FC00A59A49 /* SGM-V2.01.sf2 */ = {isa = PBXFileReference; lastKnownFileType = file; name = "SGM-V2.01.sf2"; path = "../../../Downloads/SGM-V2.01.sf2"; sourceTree = "<group>"; };
 		A45ABC0D2982EC0A00A59A49 /* Sampler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sampler.swift; sourceTree = "<group>"; };
 		A45ABC0F2982ECD300A59A49 /* TouchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TouchView.swift; sourceTree = "<group>"; };
@@ -100,6 +101,7 @@
 		A4FEB94429779D3900D6D7B4 /* isomorf */ = {
 			isa = PBXGroup;
 			children = (
+				A40E506D298931FF00A2CE3E /* Info.plist */,
 				A45ABC0B297FE5FC00A59A49 /* SGM-V2.01.sf2 */,
 				A4FEB94529779D3900D6D7B4 /* isomorfApp.swift */,
 				A4FEB94729779D3900D6D7B4 /* ContentView.swift */,
@@ -424,6 +426,7 @@
 				DEVELOPMENT_TEAM = 95U4XKU2DW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = isomorf/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -453,6 +456,7 @@
 				DEVELOPMENT_TEAM = 95U4XKU2DW;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = isomorf/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

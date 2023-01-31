@@ -35,24 +35,6 @@ extension Date {
     }
 }
 
-enum Layout {
-    case janko
-    case grid
-    case hexagon
-}
-
-enum Config: String, CaseIterable, Identifiable {
-    case janko = "janko"
-    case linn4 = "linnstrument 4"
-    case linn = "linnstrument"
-    case linn6 = "linnstrument 6"
-    case dodeka = "dodeka"
-    case harpejji = "harpejji"
-    case wicki = "wicki-haiden"
-    
-    var id: String { rawValue }
-}
-
 struct KeyboardMainView: View {
     @ObservedObject var observable: Observable
     @State var now = Date()
@@ -64,31 +46,23 @@ struct KeyboardMainView: View {
         VStack(spacing: 1) {
             ForEach((0..<observable.nRows).reversed(), id: \.self) { i in
                 HStack(spacing: 1) {
-                    switch observable.layout {
-                    case .hexagon, .janko:
-                        if(i % 2 == 0) {
-                            ForEach(0..<observable.nCols, id: \.self) { j in
-                                Key(observable: observable,
-                                    now: $now, isHalf: false, number: observable.number(i, j))
-                            }
-                        } else {
-                            Key(observable: observable, now: $now, isHalf: true, number: observable.number(i, -1))
-                                .frame(width: widthHalf)
-                            
-                            let jMax: Int = observable.nCols - 1
-                            ForEach(0..<jMax, id: \.self) { j in
-                                Key(observable: observable,
-                                    now: $now, isHalf: false, number: observable.number(i, j))
-                            }
-                            
-                            Key(observable: observable, now: $now, isHalf: true, number: observable.number(i, jMax))
-                                .frame(width: widthHalf)
-                        }
-                    case .grid:
+                    if(i % 2 == 0) {
                         ForEach(0..<observable.nCols, id: \.self) { j in
                             Key(observable: observable,
                                 now: $now, isHalf: false, number: observable.number(i, j))
                         }
+                    } else {
+                        Key(observable: observable, now: $now, isHalf: true, number: observable.number(i, -1))
+                            .frame(width: widthHalf)
+                        
+                        let jMax: Int = observable.nCols - 1
+                        ForEach(0..<jMax, id: \.self) { j in
+                            Key(observable: observable,
+                                now: $now, isHalf: false, number: observable.number(i, j))
+                        }
+                        
+                        Key(observable: observable, now: $now, isHalf: true, number: observable.number(i, jMax))
+                            .frame(width: widthHalf)
                     }
                 }
             }
@@ -199,8 +173,8 @@ struct ContentView: View {
             GeometryReader { geometry in
                 VStack(spacing: 0) {
                     let touched: [Number] = observable.sampler.played
-                        .compactMap { (number, value) in
-                            let (p, _, _) = value
+                        .compactMap { (p: Play, v) in
+                            let (number, _, _) = v
                             if case .touch(_) = p {
                                 return number
                             }
@@ -260,25 +234,6 @@ struct ContentView: View {
                 }
                 
                 Section {
-                    Picker("preset", selection: $observable.config) {
-                        ForEach(Config.allCases) { config in
-                            Text(config.rawValue).tag(config)
-                        }
-                    }
-                    .pickerStyle(MenuPickerStyle())
-                    
-                    Picker("layout", selection: $observable.layout) {
-                        Text("janko").tag(Layout.janko)
-                        Text("hexagon").tag(Layout.hexagon)
-                        Text("grid").tag(Layout.grid)
-                    }
-                    .pickerStyle(SegmentedPickerStyle())
-                    
-                    if(observable.layout != .janko) {
-                        Stepper("semitones right: \(observable.gridX)", value: $observable.gridX)
-                        Stepper("semitones up: \(observable.gridY)", value: $observable.gridY)
-                    }
-                    
                     Stepper(value: $observable.nCols, in: 1...24) {
                         Text("columns: \(observable.nCols)")
                     }
